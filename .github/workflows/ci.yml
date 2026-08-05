@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        # CPU torch: the runners have no GPU, and the CUDA wheel is ~2GB for nothing.
+        run: >
+          uv pip install --system -e ".[dev]"
+          --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Notebooks are in sync with their sources
+        run: python tools/build_labs.py --check
+
+      # Executes every solution.ipynb end to end, so a lab whose checks disagree with its
+      # own reference implementation fails here rather than in the room.
+      - name: Solution notebooks pass their own checks
+        run: python tools/run_notebooks.py
