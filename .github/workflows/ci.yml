@@ -18,7 +18,7 @@ jobs:
       - name: Install
         # CPU torch: the runners have no GPU, and the CUDA wheel is ~2GB for nothing.
         run: >
-          uv pip install --system -e ".[dev]"
+          uv pip install --system -e "packages/fast[dev]"
           --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Lint

@@ -14,7 +14,18 @@
 # depends on it.
 
 # %%
-# !pip install -q git+https://github.com/le0kar0ub1/FAST.git@main
+import os
+
+token = os.environ.get("GITHUB_TOKEN")
+if not token:
+    try:
+        from google.colab import userdata
+
+        token = userdata.get("GITHUB_TOKEN")
+    except Exception:  # noqa: BLE001 — not on Colab, or the secret isn't set
+        token = None
+auth = f"{token}@" if token else ""
+# !pip install -q git+https://{auth}github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=packages/fast
 
 # %%
 import numpy as np

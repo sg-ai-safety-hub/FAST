@@ -56,14 +56,14 @@ it, so the two can't drift apart. Edit the `.py`, never the `.ipynb`.
 
 ```sh
 uv venv
-uv pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+uv pip install -e "packages/fast[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
 uv run python tools/build_labs.py         # rebuild notebooks
 uv run python tools/build_labs.py --check # verify nothing is stale
 uv run python tools/run_notebooks.py      # execute every notebook but lab.ipynb
 ```
 
-Shared helpers, fixtures and checks live in [`fast/`](fast/) and install into Colab straight from
-this repo. [`examples/template/`](examples/template/) is a worked example of every mechanism a lab
+Shared helpers, fixtures and checks live in [`packages/fast/`](packages/fast/) and install into
+Colab straight from this repo. [`examples/template/`](examples/template/) is a worked example of every mechanism a lab
 has — copy it to start a new one. CI runs lint, the staleness check, and every notebook on each
 push. See [CLAUDE.md](CLAUDE.md) for conventions.
 

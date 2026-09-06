@@ -169,8 +169,11 @@ deployable capability", flag it rather than shipping it.
 
 ```
 README.md              course homepage — schedule, setup, index
-fast/                  shared lab utilities; pip-installed into Colab from this repo
-tools/                 build_labs.py, run_notebooks.py
+ruff.toml              lint config for the whole repo (tools, days, package)
+packages/fast/         the installable `fast` package — pip-installed into Colab from this repo
+  pyproject.toml       package + dev deps live here, not at the repo root
+  src/fast/            shared lab utilities: colab, models, testing, labs/
+tools/                 build_labs.py, run_notebooks.py — repo build scripts (run from root)
 examples/template/     worked example of every lab mechanism — copy to start a new lab
 dayN-<theme>/
   README.md            objectives + run of show (the authoritative exercise order)
@@ -196,7 +199,7 @@ percent-format `.py`; `tools/build_labs.py` renders both the participant and sol
 from it, so they cannot drift. Editing a `.ipynb` directly means losing the edit on next build.
 
 ```sh
-uv venv && uv pip install -e ".[dev]"     # contained env in .venv/ — never use a global python
+uv venv && uv pip install -e "packages/fast[dev]"   # contained env in .venv/ — never a global python
 uv run python tools/build_labs.py         # rebuild
 uv run python tools/build_labs.py --check # verify nothing is stale
 ```
@@ -279,12 +282,16 @@ be excluded, say so out loud rather than letting it quietly not run.
 `uv` with a `.venv/` inside the repo. There is no system Python here — always `uv run` or
 `.venv/bin/python`, never a global interpreter.
 
-`pyproject.toml` deliberately does **not** declare `torch`. Colab already ships a CUDA build;
+`packages/fast/pyproject.toml` deliberately does **not** declare `torch`. Colab already ships a CUDA build;
 declaring it risks pip swapping in a CPU wheel mid-install and breaking a lab.
 
-The install line in every notebook is identical (`git+https://github.com/le0kar0ub1/FAST.git@main`)
-so that moving the repo to a SASH org later is one sweep rather than an archaeology exercise.
-Pin `@main` to a release tag before the program runs.
+The install cell in every notebook is identical, pip-installing
+`git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=packages/fast` — so
+changing the source is one
+find/replace, not an archaeology exercise. The repo is **private for now**, so the cell reads a
+`GITHUB_TOKEN` — from the environment (running locally), else Colab Secrets — and authenticates
+the clone with it when present. Export the token in a shell or set the Colab secret once, and
+the same notebook runs in either place; drop it when the repo goes public. Pin `@main` to a release tag before the program runs.
 
 ## Status
 

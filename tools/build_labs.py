@@ -160,6 +160,23 @@ def outputs_for(source: Path, text: str) -> list[tuple[Path, str]]:
     return [(source.parent / "lab.ipynb", "lab"), (source.parent / "solution.ipynb", "solution")]
 
 
+def structure(notebook_text: str) -> str:
+    """Canonical form of a notebook with outputs and execution counts removed.
+
+    A finished solution is committed *with* its outputs, so it reads on GitHub without a
+    GPU. The build always renders outputs stripped, so a byte comparison would call every
+    such solution stale. Comparing on structure — cells, source, ids, metadata — lets a
+    committed solution keep its outputs while `--check` still guards against the source and
+    the notebook drifting apart, which is the only drift that matters here.
+    """
+    nb = nbformat.reads(notebook_text, as_version=4)
+    for cell in nb.cells:
+        if cell.cell_type == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+    return nbformat.writes(nb)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="fail if any output is stale")
@@ -181,8 +198,9 @@ def main() -> int:
             nb = finalise(jupytext.reads(variant_text, fmt="py:percent"), variant, rel)
             rendered = jupytext.writes(nb, fmt="ipynb")
 
-            if rendered == (path.read_text() if path.exists() else None):
-                continue
+            current = path.read_text() if path.exists() else None
+            if current is not None and structure(current) == structure(rendered):
+                continue  # up to date — and any committed outputs are left untouched
             if args.check:
                 stale.append(path.relative_to(ROOT))
             else:
