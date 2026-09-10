@@ -8,19 +8,19 @@ Everything here is public and reusable — labs, exercises, worksheets, and solu
 
 ## Start here
 
-Before Day 1, work through [`day0-setup/`](day0-setup/). It takes two minutes and confirms your
+Before Day 1, work through [`day0-setup/`](src/day0-setup/). It takes two minutes and confirms your
 Colab environment works. Doing it on Day 0 rather than Wednesday morning is the whole point.
 
 ## The week
 
 | Day | | |
 | --- | --- | --- |
-| 0 | [Setup & Environment](day0-setup/) | Colab, GPU, smoke test |
-| 1 | [AI Models](day1-models/) | Terminology, system cards, evals, logprobs |
-| 2 | [Control](day2-control/) | Alignment, assume breach, protocols, defer-to-resample |
-| 3 | [Open Weight Security](day3-weights/) | Threat tiering, abliteration, backdoors, distillation |
-| 4 | [Verification](day4-verification/) | Racing dynamics, INF Treaty, hardware mechanisms |
-| 5 | [Next Steps](day5-next-steps/) | Where to go next, SMART goals, closing |
+| 0 | [Setup & Environment](src/day0-setup/) | Colab, GPU, smoke test |
+| 1 | [AI Models](src/day1-models/) | Terminology, system cards, evals, logprobs |
+| 2 | [Control](src/day2-control/) | Alignment, assume breach, protocols, defer-to-resample |
+| 3 | [Open Weight Security](src/day3-weights/) | Threat tiering, abliteration, backdoors, distillation |
+| 4 | [Verification](src/day4-verification/) | Racing dynamics, INF Treaty, hardware mechanisms |
+| 5 | [Next Steps](src/day5-next-steps/) | Where to go next, SMART goals, closing |
 
 Each day's README lists its exercises in running order.
 
@@ -56,14 +56,14 @@ it, so the two can't drift apart. Edit the `.py`, never the `.ipynb`.
 
 ```sh
 uv venv
-uv pip install -e "packages/fast[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+uv pip install -e "src/packages/fast[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
 uv run python tools/build_labs.py         # rebuild notebooks
 uv run python tools/build_labs.py --check # verify nothing is stale
 uv run python tools/run_notebooks.py      # execute every notebook but lab.ipynb
 ```
 
-Shared helpers, fixtures and checks live in [`packages/fast/`](packages/fast/) and install into
-Colab straight from this repo. [`examples/template/`](examples/template/) is a worked example of every mechanism a lab
+Shared helpers, fixtures and checks live in [`src/packages/fast/`](src/packages/fast/) and install into
+Colab straight from this repo. [`examples/template/`](src/examples/template/) is a worked example of every mechanism a lab
 has — copy it to start a new one. CI runs lint, the staleness check, and every notebook on each
 push. See [CLAUDE.md](CLAUDE.md) for conventions.
 

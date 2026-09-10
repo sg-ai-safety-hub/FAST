@@ -41,7 +41,7 @@ import jupytext
 import nbformat
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE_GLOBS = ("day*/**/*.py", "examples/**/*.py")
+SOURCE_GLOBS = ("src/day*/**/*.py", "src/examples/**/*.py")
 
 DECORATOR = "exercise"
 SOLUTION_ONLY, LAB_ONLY = "# @solution-only", "# @lab-only"

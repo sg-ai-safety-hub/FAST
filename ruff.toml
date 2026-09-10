@@ -1,7 +1,7 @@
 line-length = 100
 # The installable package lives here, not at the repo root — so ruff resolves `fast`
 # as first-party (import grouping) rather than treating it as a third-party dependency.
-src = ["packages/fast/src"]
+src = ["src/packages/fast"]
 # Generated notebooks are derived artifacts, and participant stubs are deliberately
 # incomplete (`direction = ...` is unused on purpose). Lint the .py sources instead.
 extend-exclude = ["*.ipynb"]

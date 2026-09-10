@@ -25,7 +25,7 @@ if not token:
     except Exception:  # noqa: BLE001 — not on Colab, or the secret isn't set
         token = None
 auth = f"{token}@" if token else ""
-# !pip install -q git+https://{auth}github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=packages/fast
+# !pip install -q git+https://{auth}github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
 
 # %%
 import numpy as np
