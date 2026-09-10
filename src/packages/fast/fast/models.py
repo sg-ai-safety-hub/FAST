@@ -5,7 +5,7 @@ Deliberately thin. Add helpers here when a second lab needs them — not before.
 
 from __future__ import annotations
 
-__all__ = ["SMALL_MODELS", "chat", "load_model"]
+__all__ = ["SMALL_MODELS", "chat", "load_default", "load_model"]
 
 # Vetted for the program: ungated, small enough for a mid-tier GPU, instruction-tuned.
 # Anything added here must be checked for licence and gating first — 20 people hitting
@@ -31,6 +31,23 @@ def load_model(name: str, dtype: str = "auto", device_map: str = "auto", **kwarg
     model.eval()
     return model, tokenizer
 
+
+
+def load_default():
+    """Load the small instruction model the Day 1 labs share.
+
+    Qwen 0.5B in the room; a 135M stand-in under CI, where there's no GPU and the numbers
+    don't need to mean anything, only the code paths do. Runs on CPU in a couple of minutes.
+    """
+    import torch
+
+    from fast.colab import ci_mode
+
+    name = "smol-135m" if ci_mode() else "qwen-0.5b"
+    dtype = "auto" if torch.cuda.is_available() else "float32"
+    model, tokenizer = load_model(name, dtype=dtype)
+    print(f"loaded {name} on {model.device}")
+    return model, tokenizer
 
 def chat(model, tokenizer, prompt: str, max_new_tokens: int = 128, **kwargs) -> str:
     """Single-turn chat completion. Returns only the newly generated text."""
