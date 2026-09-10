@@ -6,11 +6,10 @@ rerun on your own models back at work.
 
 ## Run of show
 
-- [`threat-actor-tiering/`](threat-actor-tiering/) · **Threat-actor tiering** · 45min · Team design
-- [`abliteration/`](abliteration/) · **Abliteration** · 1h · Lab
-- [`backdoors-probes/`](backdoors-probes/) · **Backdoors and probes** · 1h · Lab
-- [`distillation/`](distillation/) · **Distillation** · 1h · Lab
-- [`scenario-sort/`](scenario-sort/) · **Scenario sort** · 20min · Card sort
+- [`threat-actor-tiering/`](threat-actor-tiering/) · **Threat-actor tiering** · Talk
+- [`abliteration/`](abliteration/) · **Abliteration** · Lab
+- [`backdoors-probes/`](backdoors-probes/) · **Backdoors and probes** · Lab
+- [`distillation/`](distillation/) · **Distillation** · Lab
 
 Order here is the source of truth. Directories are unnumbered so reordering the run of show
 doesn't rename paths or break bookmarked Colab links. Guest lectures have no directory; speaker

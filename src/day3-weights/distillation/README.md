@@ -1,6 +1,6 @@
 # Distillation
 
-**Day 3 · 1h · Lab · 🟡 stub**
+**Day 3 · Lab · 🟡 stub**
 
 Distil a teacher into a smaller student — from logits, then from prompt/response pairs alone with no weight access.
 

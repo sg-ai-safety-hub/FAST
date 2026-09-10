@@ -1,6 +1,6 @@
 # The field and its research agendas
 
-**Day 1 · 1h · Lecture · 🟡 stub**
+**Day 1 · Lecture · 🟡 stub**
 
 Agendas, goals and orgs: interpretability, amplified oversight, control, robustness, verification, fieldbuilding, evals.
 

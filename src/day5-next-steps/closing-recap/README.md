@@ -1,6 +1,6 @@
 # Closing & expectation recap
 
-**Day 5 · 45min · Facilitated discussion · 🟡 stub**
+**Day 5 · Facilitated discussion · 🟡 stub**
 
 Hand back Day 1's answers. Did they change, or stay the same with a clearer path?
 

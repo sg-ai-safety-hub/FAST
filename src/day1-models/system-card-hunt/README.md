@@ -1,6 +1,6 @@
 # System card easter-egg hunt
 
-**Day 1 · 45min · Timeboxed hunt · 🟡 stub**
+**Day 1 · Timeboxed hunt · 🟡 stub**
 
 System cards carry real information — and you can navigate one under time pressure.
 

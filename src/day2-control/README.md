@@ -6,12 +6,9 @@ and where today's experiments hit their limits.
 
 ## Run of show
 
-- [`alignment-intro/`](alignment-intro/) · **AI alignment introduction** · 30min · Lecture
-- [`assume-breach-mapping/`](assume-breach-mapping/) · **Assume breach mapping** · 40min · Discussion
-- [`control-roadmap/`](control-roadmap/) · **GDM AI control roadmap** · 20min · Reading
-- [`protocol-design/`](protocol-design/) · **Paper protocol design** · 1.5h · Team design
-- [`red-blue-team/`](red-blue-team/) · **Red / blue team** · 1.5h · Team design
-- [`defer-to-resample/`](defer-to-resample/) · **Defer to resample** · 45min · Lab
+- [`alignment-intro/`](alignment-intro/) · **AI alignment introduction** · Lecture
+- [`assume-breach-mapping/`](assume-breach-mapping/) · **Assume breach mapping** · Discussion
+- [`control-hackathon/`](control-hackathon/) · **AI control hackathon** · Hackathon
 
 Order here is the source of truth. Directories are unnumbered so reordering the run of show
 doesn't rename paths or break bookmarked Colab links. Guest lectures have no directory; speaker

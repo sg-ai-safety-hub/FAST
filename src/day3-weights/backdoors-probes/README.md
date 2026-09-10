@@ -1,6 +1,6 @@
 # Backdoors and probes
 
-**Day 3 · 1h · Lab · 🟡 stub**
+**Day 3 · Lab · 🟡 stub**
 
 Train a toy model with trigger-conditioned behaviour, then see whether probes catch it from activations.
 

@@ -6,10 +6,8 @@ mechanisms.
 
 ## Run of show
 
-- [`ai-2040/`](ai-2040/) · **AI 2040** · 1h · Reading
-- [`inf-treaty/`](inf-treaty/) · **INF Treaty case study** · 1h · Case study → wargame
-- [`design-a-hem/`](design-a-hem/) · **Design a hardware-enabled mechanism** · 2h prep + 1h plenum · Team design
-- [`tamper-evidence-debate/`](tamper-evidence-debate/) · **Tamper-evidence vs tamperproof** · 20min · Debate
+- [`verification-takes/`](verification-takes/) · **Verification takes** · Talk
+- [`wargaming/`](wargaming/) · **Wargaming** · Wargame
 
 Order here is the source of truth. Directories are unnumbered so reordering the run of show
 doesn't rename paths or break bookmarked Colab links. Guest lectures have no directory; speaker

@@ -1,6 +1,6 @@
 # Expectation exercise
 
-**Day 1 · 30min · Worksheet · 🟡 stub**
+**Day 1 · Worksheet · 🟡 stub**
 
 Anchor each participant's current knowledge and intentions.
 

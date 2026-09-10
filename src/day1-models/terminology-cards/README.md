@@ -1,6 +1,6 @@
 # AI safety terminology sort
 
-**Day 1 · 15min groups + 20min plenum · Card sort · 🟡 stub**
+**Day 1 · Card sort · 🟡 stub**
 
 Build shared terminology: AGI, ASI, narrow AI, alignment, misuse, misalignment, capability elicitation, AI safety, AI security.
 

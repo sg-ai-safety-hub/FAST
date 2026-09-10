@@ -1,6 +1,6 @@
 # Abliteration
 
-**Day 3 · 1h · Lab · 🟡 stub**
+**Day 3 · Lab · 🟡 stub**
 
 Remove refusal behaviour from a small chat model by ablating the refusal direction in its residual stream.
 

@@ -88,19 +88,20 @@ different artifacts:
 
 | Format | Example | What we ship |
 | --- | --- | --- |
-| Hands-on lab | Abliteration, backdoor/probes, defer-to-resample | Colab notebook + separate solution notebook |
-| Card / sorting exercise | AIS definitions, scenario sort | Printable card deck (PDF) + held-back answer key |
-| Timeboxed hunt | System card easter-egg hunt, guess-the-eval | Question set, source docs, held-back answer key |
-| Structured discussion / debate | Tamper-evidence vs tamperproof, assume-breach mapping | Framing brief, prompt sheet, positions to argue |
-| Team design exercise | Paper protocol design, red/blue team, Design-a-HEM | Scenario brief per team, materials list, plenary format |
+| Hands-on lab | Abliteration, backdoors & probes, output distributions | Colab notebook + separate solution notebook |
+| Card / sorting exercise | AIS definitions | Printable card deck (PDF) + held-back answer key |
+| Timeboxed hunt | System card easter-egg hunt | Question set, source docs, held-back answer key |
+| Structured discussion / debate | Assume-breach mapping | Framing brief, prompt sheet, positions to argue |
+| Team design exercise | AI control hackathon, wargaming | Scenario brief per team, materials list, plenary format |
 | Worksheet | SMART goal, expectation exercise | Fillable template + how it gets used later in the week |
 | Guest lecture | AISI, Apollo/Redwood, FLI/TamperSec/Lucid | Reading or context the session assumes |
 
 Guest-lecture *speaker* briefs, and anything about who is teaching or supporting a session, stay
 in the internal docs — only the participant-facing context lands here.
 
-**Every exercise needs a short README**, notebook or not: objective it serves, duration, format,
-materials, prerequisites, and what the exercise is meant to surface. Write it so a participant
+**Every exercise needs a short README**, notebook or not: the objective it serves, its format,
+prerequisites, and what it's meant to surface. Leave duration out of a stub; the person leading
+the session owns the timing and sets it later. Write it so a participant
 or an outside reader could pick it up — not as private notes. Minute-by-minute run of show,
 what to cut when running late, and instructor-only framing belong in the internal docs.
 
@@ -112,7 +113,7 @@ what to cut when running late, and instructor-only framing belong in the interna
 | 1 | AI models | Shared terminology; where to find real model info (system cards, evals) |
 | 2 | Control | Why alignment is hard; the AI control agenda; protocols and safety–usefulness tradeoffs |
 | 3 | Open weight security | Why weights are harder to safeguard than an API: abliteration, backdoors, distillation |
-| 4 | Verification | Racing dynamics; treaty verification (INF); hardware-enabled mechanisms |
+| 4 | Verification | Racing dynamics; treaty verification; hardware-enabled mechanisms |
 | 5 | Next steps | A concrete SMART goal, warm intros, expectation recap against Day 1 |
 
 The authoritative curriculum source is **MASTERDOC v6 (Jul 2026)** plus the working curriculum
@@ -152,8 +153,8 @@ deployable capability", flag it rather than shipping it.
 - **Markdown** for prose. **Jupyter notebooks** (`.ipynb`) for labs. Slides: format TBD.
 - Keep solutions in **separate files** from the work. Never leave an answer key inside a
   participant handout or a lab notebook.
-- Every exercise file starts with a header block: **objective, duration, format, materials,
-  prerequisites**.
+- Every exercise file starts with a header block: **objective, format, prerequisites**. Duration
+  is the session lead's to set, so a stub omits it; a built lab may still state its real runtime.
 - Timings in the curriculum are real budgets (30min, 45min, 1h, 1.5h). Build to the budget and
   state where the slack is.
 - Cite sources with real links. This audience will check them, and half the exercises
@@ -180,7 +181,7 @@ src/                   everything the curriculum is built from
   dayN-<theme>/
     README.md          objectives + run of show (the authoritative exercise order)
     <exercise>/
-      README.md        objective, duration, format
+      README.md        objective, format, prerequisites
       lab.py           source of truth for notebooks — edit this
       lab.ipynb        generated
       solution.ipynb   generated

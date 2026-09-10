@@ -1,6 +1,6 @@
 # SMART goal worksheet
 
-**Day 5 · 1h · Worksheet · 🟡 stub**
+**Day 5 · Worksheet · 🟡 stub**
 
 A concrete 90-day action with a named blocker and a stated 'what would change my mind'.
 

@@ -17,10 +17,10 @@ and confirms your Colab account works. Doing it early is the whole point of it.
 | --- | --- | --- |
 | 0 | [Setup & Environment](src/day0-setup/) | Colab, GPU, smoke test |
 | 1 | [AI Models](src/day1-models/) | Terminology, system cards, evals, logprobs |
-| 2 | [Control](src/day2-control/) | Alignment, assume breach, protocols, defer-to-resample |
+| 2 | [Control](src/day2-control/) | Alignment, assume breach, control hackathon |
 | 3 | [Open Weight Security](src/day3-weights/) | Threat tiering, abliteration, backdoors, distillation |
-| 4 | [Verification](src/day4-verification/) | Racing dynamics, INF Treaty, hardware mechanisms |
-| 5 | [Next Steps](src/day5-next-steps/) | Where to go next, SMART goals, closing |
+| 4 | [Verification](src/day4-verification/) | Racing dynamics, verification, wargaming |
+| 5 | [Next Steps](src/day5-next-steps/) | Funding, next steps, closing |
 
 Each day's README lists that day in running order.
 

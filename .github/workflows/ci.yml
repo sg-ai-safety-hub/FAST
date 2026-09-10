@@ -30,7 +30,8 @@ jobs:
       - name: Notebooks are in sync with their sources
         run: .venv/bin/python tools/build_labs.py --check
 
-      # Executes every solution.ipynb end to end, so a lab whose checks disagree with its
-      # own reference implementation fails here rather than in the room.
-      - name: Solution notebooks pass their own checks
+      # Solutions must run clean (a lab whose checks disagree with its own reference answer
+      # fails here, not in the room), and every lab.ipynb must fail on its stub (a check that
+      # passes on the removed exercise bodies is testing nothing).
+      - name: Notebooks — solutions pass, stubs fail their checks
         run: .venv/bin/python tools/run_notebooks.py
