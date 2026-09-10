@@ -55,10 +55,14 @@ from it, so the two can't drift. Edit the `.py`, never the `.ipynb`.
 ```sh
 uv venv
 uv pip install -e "src/packages/fast[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+uv run pre-commit install                 # enable the local commit checks
 uv run python tools/build_labs.py         # rebuild notebooks
 uv run python tools/build_labs.py --check # check nothing is stale
 uv run python tools/run_notebooks.py      # run every notebook except lab.ipynb
 ```
+
+Before each commit, the hooks run ruff and the notebook sync check on what you're committing.
+The full notebook execution is CI's job, since it downloads models and takes minutes.
 
 Shared helpers, fixtures, and checks live in [`src/packages/fast/`](src/packages/fast/) and
 install into Colab straight from this repo. [`src/examples/template/`](src/examples/template/) is

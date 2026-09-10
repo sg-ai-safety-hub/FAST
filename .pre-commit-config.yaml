@@ -1,0 +1,20 @@
+# Fast checks before each commit. The heavy notebook execution stays in CI.
+# Enable once per clone:  uv run pre-commit install
+#
+# Hooks are local on purpose: they run the tools already in .venv, so a contributor gets the
+# same ruff and the same build check as CI, with nothing to clone.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        entry: .venv/bin/ruff check --force-exclude
+        language: system
+        types_or: [python]
+
+      - id: build-labs-check
+        name: notebooks are in sync with their .py sources
+        entry: .venv/bin/python tools/build_labs.py --check
+        language: system
+        pass_filenames: false
+        files: \.(py|ipynb)$

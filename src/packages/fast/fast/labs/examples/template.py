@@ -1,6 +1,6 @@
 """Fixtures and checks for the worked example in `examples/template/`.
 
-Copy this file to `fast/labs/<exercise>.py` when starting a real lab. It exists to be read
+Copy this file to `fast/labs/<day>/<exercise>.py` when starting a real lab. It exists to be read
 alongside `examples/template/lab.py` — together they show the whole pattern, and CI executes
 them on every push, so if the machinery breaks you find out here first.
 

@@ -235,16 +235,18 @@ stripped from generated notebooks; when a lab is finished, run the solution once
 with outputs intact, so it can be read without a GPU.
 
 `src/examples/template/` is a worked, CI-executed example of every mechanism. Start a lab by copying
-it and `fast/labs/template.py`.
+it and `fast/labs/examples/template.py`.
 
 ## Checks
 
 Participants need to know whether their implementation is right without asking an instructor.
-Each exercise gets a module in `fast/labs/<exercise>.py` holding **both** its shared fixtures and
+Each lab gets a module under `fast/labs/`, named and placed to mirror the lab directory
+(`src/day1-models/output-distributions/` -> `fast.labs.day1_models.output_distributions`; hyphens
+become underscores), holding **both** its shared fixtures and
 its checks, so a notebook needs one import:
 
 ```python
-from fast.labs import abliteration as lab
+from fast.labs.day1_models import output_distributions as lab
 
 harmful, harmless = lab.activation_pairs()
 lab.check_difference_in_means(difference_in_means)
@@ -278,6 +280,11 @@ steps = 10 if ci_mode() else 500
 
 A lab excluded from CI is a lab nobody notices is broken until the morning it runs. If one has to
 be excluded, say so out loud rather than letting it quietly not run.
+
+The same fast checks (ruff and `build_labs.py --check`) run locally through
+`.pre-commit-config.yaml` — enable them once with `uv run pre-commit install`. Notebook execution
+is CI-only; it's too slow for a commit hook. The hooks are local, so they use the tools already
+in `.venv` and match CI exactly.
 
 ## Environment
 

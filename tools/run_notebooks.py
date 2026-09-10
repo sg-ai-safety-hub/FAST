@@ -31,11 +31,25 @@ import sys
 from pathlib import Path
 
 import nbformat
+from jupyter_client.manager import KernelManager
 from nbclient import NotebookClient
 from nbclient.exceptions import CellExecutionError
 
 ROOT = Path(__file__).resolve().parent.parent
 TIMEOUT = 600
+
+
+def _kernel_for_this_interpreter() -> KernelManager:
+    """A kernel launched from *this* interpreter, whichever it is.
+
+    The registered `python3` kernelspec runs a bare `python`, so without this a notebook could
+    execute against some other interpreter that has never heard of `fast`. Pinning `sys.executable`
+    means the kernel is the same environment we installed the package into, so the notebook's
+    imports resolve to what we're actually testing.
+    """
+    km = KernelManager(kernel_name="python3")
+    km.kernel_spec.argv[0] = sys.executable
+    return km
 
 
 def _rel(path: Path) -> Path:
@@ -55,7 +69,7 @@ def run(path: Path) -> str | None:
     """Execute one notebook. Returns an error string, or None on success."""
     nb = nbformat.read(path, as_version=4)
     nb.cells = executable_cells(nb)
-    client = NotebookClient(nb, timeout=TIMEOUT, kernel_name="python3", allow_errors=False)
+    client = NotebookClient(nb, km=_kernel_for_this_interpreter(), timeout=TIMEOUT, allow_errors=False)
     try:
         client.execute(cwd=str(path.parent))
     except CellExecutionError as exc:

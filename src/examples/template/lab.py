@@ -3,8 +3,8 @@
 #
 # A worked, runnable example of every mechanism a lab has: solution markers, shared
 # fixtures, and checks participants can run themselves. Copy `examples/template/lab.py`
-# to `dayN-<theme>/<exercise>/lab.py` and `fast/labs/template.py` to
-# `fast/labs/<exercise>.py` to start a real one.
+# to `dayN-<theme>/<exercise>/lab.py` and `fast/labs/examples/template.py` to
+# `fast/labs/<dayN_theme>/<exercise>.py` to start a real one.
 #
 # The maths here is a stripped-down version of the abliteration lab — find the direction
 # separating two sets of activations, then project it out — but on synthetic numpy data so
@@ -30,7 +30,7 @@ auth = f"{token}@" if token else ""
 # %%
 import numpy as np
 
-from fast.labs import template as lab
+from fast.labs.examples import template as lab
 from fast.testing import exercise
 
 # %% [markdown]

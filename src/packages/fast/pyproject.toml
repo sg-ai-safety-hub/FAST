@@ -19,6 +19,7 @@ dev = [
     "nbformat>=5.10",
     "nbclient>=0.10",
     "ipykernel>=6.29",
+    "pre-commit>=3.7",
     "ruff>=0.6",
     # CPU torch, so CI can execute model-based labs. Colab brings its own CUDA build —
     # this is why torch is a dev dependency and not a runtime one.
