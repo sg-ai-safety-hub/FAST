@@ -15,19 +15,22 @@ jobs:
         with:
           enable-cache: true
 
+      # A real .venv, not --system: the runner's /usr Python is externally managed and
+      # refuses system installs. This also matches how the repo is developed (see CLAUDE.md).
       - name: Install
         # CPU torch: the runners have no GPU, and the CUDA wheel is ~2GB for nothing.
         run: >
-          uv pip install --system -e "src/packages/fast[dev]"
+          uv venv &&
+          uv pip install -e "src/packages/fast[dev]"
           --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Lint
-        run: ruff check .
+        run: .venv/bin/ruff check .
 
       - name: Notebooks are in sync with their sources
-        run: python tools/build_labs.py --check
+        run: .venv/bin/python tools/build_labs.py --check
 
       # Executes every solution.ipynb end to end, so a lab whose checks disagree with its
       # own reference implementation fails here rather than in the room.
       - name: Solution notebooks pass their own checks
-        run: python tools/run_notebooks.py
+        run: .venv/bin/python tools/run_notebooks.py
