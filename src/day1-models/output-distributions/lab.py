@@ -1,15 +1,18 @@
 # %% [markdown]
 # # Output distributions and scoring
 #
-# A model doesn't decide on an answer and then say it. It produces a probability distribution
-# over the next *token* (a chunk of text, usually a short word or word-piece; see
-# [how tokenizers work](https://huggingface.co/docs/transformers/tokenizer_summary)), and
-# something samples a token from that distribution before the loop repeats. What looks like
-# confidence or a refusal is a shape in that distribution plus a choice about how to read from it.
+# When a model answers, it isn't choosing a sentence and then typing it. At each step it produces
+# a probability distribution over the next *token* (a token is a chunk of text, usually a short
+# word or word-piece; see
+# [how tokenizers work](https://huggingface.co/docs/transformers/tokenizer_summary)), some rule
+# picks one token from that distribution, and the model repeats the whole thing for the token
+# after that.
 #
-# This lab hands you the tools to read it. By the end you'll have a small evaluator that scores
-# multiple-choice answers by probability and picks the best one, which is where the accuracy
-# numbers in a system card come from.
+# So a lot of what we call a model's "behaviour" is really two separate things: the shape of that
+# distribution, and the rule we use to read a token out of it. This lab pulls the two apart and
+# gives you code to look at each. The last part builds a small multiple-choice evaluator, so you
+# can see for yourself that the core of a benchmark score is scoring each candidate answer and
+# counting how often the best one is correct.
 #
 # **Duration:** 90 min. **Prerequisites:** Day 0. **GPU:** optional; a 0.5B model runs on CPU
 # in a couple of minutes. Nothing here trains, so every cell after the download takes seconds.
@@ -62,8 +65,10 @@ print(f"{logits.shape[0]} tokens in the vocabulary; values run from {logits.min(
 # total, so the numbers come out positive and sum to 1. Temperature divides the logits first:
 # below 1 it sharpens the distribution toward the top token, above 1 it flattens it toward uniform.
 #
-# One trap. Real logits aren't centred on zero, and `exp()` of a raw logit overflows a float
-# well before the vocabulary runs out. A correct softmax handles that without special-casing.
+# One thing to watch. Real logits aren't centred on zero, so computing `exp()` on a raw logit can
+# overflow to infinity before you've covered the vocabulary. The usual fix is to subtract the
+# largest logit first, which doesn't change the result but keeps the numbers in range.
+# `torch.softmax` already does this, so if you build on it you get the stable version for free.
 
 
 # %%
@@ -88,13 +93,22 @@ for temperature in (0.5, 1.0, 2.0):
 
 
 # %% [markdown]
-# ### Exercise: how sure is it?
+# ### Exercise (optional): how sure is it?
 #
-# "The model is confident" is something you can put a number on.
-# [Shannon entropy](https://en.wikipedia.org/wiki/Entropy_%28information_theory%29) over the
-# next-token distribution, measured in bits, is that number: 0 when one token is certain, and
-# *n* bits when the model is as undecided as a uniform choice among 2ⁿ tokens. Reach for it
-# whenever you want to tell reciting apart from guessing.
+# Nothing later in the lab depends on this one, so skip it if you're short on time and come back
+# after Part 3. It's a useful number to have, not a prerequisite for the scorer.
+#
+# "The model is confident" sounds vague, but you can put a number on it.
+# [Shannon entropy](https://en.wikipedia.org/wiki/Entropy_%28information_theory%29) measures how
+# spread out a distribution is, in bits. It's 0 when one token holds all the probability, and it
+# grows as the probability spreads across more tokens: *n* bits means the model is as undecided as
+# it would be choosing uniformly among 2ⁿ tokens.
+#
+# That number is worth having because a peaked distribution and a flat one mean different things.
+# When the next token is all but forced (finishing "the capital of France is"), almost all the
+# probability sits on one token and entropy is near zero. When many continuations are about as
+# plausible as each other, the probability spreads out and entropy climbs. So entropy is a quick
+# read on whether the model is committed to one answer or spreading its bet.
 
 
 # %%
@@ -123,14 +137,20 @@ for prompt in (
 
 
 # %% [markdown]
-# ### Exercise: nucleus sampling
+# ### Exercise: top-p filtering
 #
-# Top-p sampling keeps the smallest set of tokens whose probability adds up to `p` and throws
-# the rest away ([Holtzman et al., 2019](https://arxiv.org/abs/1904.09751)). The long tail is
-# where most of the vocabulary lives, and where most incoherent output comes from.
+# Top-p sampling, also called nucleus sampling, keeps the smallest set of the most likely tokens
+# whose probability adds up to `p`, and discards the rest before sampling
+# ([Holtzman et al., 2019](https://arxiv.org/abs/1904.09751)). The reason it helps: the vocabulary
+# has tens of thousands of tokens, and although each unlikely token has little probability on its
+# own, together the long tail holds enough that you will sometimes draw from it. Those draws are
+# where off-topic or garbled tokens come from, so cutting the tail keeps generation coherent
+# without forcing the model to always take the single top token.
 #
-# Hold on to the deployment consequence. The same weights behind two sampling configs are two
-# different systems, and the config rarely shows up in the model card.
+# This matters when you read claims about how a model behaves. `p`, temperature and the other
+# sampling settings are chosen when the model is served, not fixed in the weights, and they change
+# the output. The same checkpoint run with different settings can behave noticeably differently,
+# and those settings usually aren't written in the model card.
 
 
 # %%
@@ -164,7 +184,8 @@ for p in (0.9, 0.5):
     print(f"p = {p}: filtered shape {tuple(filtered.shape)}, {kept} of {probs.shape[0]} survive, sum {float(filtered.sum()):.3f}")
 
 # %%
-# Sampling is the only reason a "deterministic" model gives different answers on repeat runs.
+# Sampling is the usual reason a "deterministic" model gives different answers across runs; even
+# at temperature 0, batch composition and non-deterministic GPU kernels can still slightly nudge the output.
 nucleus = top_p_filter(next_token_probs(logits, temperature=1.0), 0.9)
 draws = torch.multinomial(nucleus, num_samples=8, replacement=True)
 print(f"nucleus: shape {tuple(nucleus.shape)}   draws: shape {tuple(draws.shape)}")
@@ -173,24 +194,23 @@ print("  " + "  ".join(repr(tokenizer.decode([t])) for t in draws.tolist()))
 print(f"greedy (argmax) always gives: {tokenizer.decode([int(probs.argmax())])!r}")
 
 # %% [markdown]
-# *Greedy decoding* (always take the argmax, the single most likely token) is repeatable. Anything
-# above temperature 0 trades that repeatability for variety, and the trade is chosen at deployment,
-# not fixed in the weights, so two teams running the same checkpoint at different settings ship
-# models that behave differently. Hugging Face's
-# [generation strategies](https://huggingface.co/docs/transformers/generation_strategies) lists the
-# knobs.
+# *Greedy decoding* means taking the argmax (the single most likely token) at every step. It's
+# repeatable: the same prompt gives the same output every time. Any temperature above 0 adds
+# randomness to the choice, trading that repeatability for variety in what comes out. Hugging
+# Face's [generation strategies](https://huggingface.co/docs/transformers/generation_strategies)
+# walks through the common options.
 
 # %% [markdown]
 # ## Part 2 — scoring a string the model didn't write
 #
-# Generation samples from the distribution. Scoring asks the opposite question: how likely was
-# *this* continuation? You supply the string and read off its probability, with no generation
-# involved.
+# So far we've sampled from the distribution to produce text. Scoring turns that around: instead
+# of asking the model to generate, you hand it a specific continuation and ask how much
+# probability it assigned to exactly that string. Nothing is generated.
 #
-# This is the workhorse for the rest of the week. Multiple-choice evals score each option this
-# way instead of generating text and parsing it. Memorisation tests compare a passage's score
-# against a paraphrase. Tomorrow's lab uses it to measure which behaviour a model leans toward
-# without generating anything.
+# This is more convenient than generating for most measurement tasks, because it gives you a
+# number you can compare directly instead of text you have to read and interpret. A multiple-choice
+# eval scores each option and takes the highest, which is what Part 3 does. Tomorrow's lab uses the
+# same scorer to measure which of two replies a model prefers. You write it once here and reuse it.
 #
 # The mechanics: run the prompt and completion through together, and at each position read off the
 # [log probability](https://en.wikipedia.org/wiki/Log_probability) the model gave the token that
@@ -242,23 +262,29 @@ for answer in (" Paris", " Lyon", " Bangkok"):
     print(f"{sequence_logprob(model, tokenizer, prompt, answer):8.3f}   {answer!r}")
 
 # %% [markdown]
-# The gap between two scores is the useful quantity: it says which continuation the model
-# prefers and by how much. One caveat before leaning on it. A sum of log probabilities grows
-# more negative with every token, so it favours shorter strings. Comparing answers of
-# different lengths means dividing by the token count first.
+# Usually what you want is the gap between two scores, since it tells you which continuation the
+# model finds more likely and by how much. One thing to watch before you rely on it. Log
+# probabilities are always negative, so every extra token pushes the total further down, and a
+# longer string ends up with a lower score just for being longer. Compare answers of different
+# lengths by their raw totals and the shortest one wins by default. Dividing each total by its
+# number of tokens, giving the average log probability per token, removes that bias. That's what
+# Part 3 does.
 
 # %% [markdown]
 # ## Part 3 — a multiple-choice evaluator from scratch
 #
-# Here is what an eval actually is. Take a question and a few candidate answers, score each
-# answer as a continuation of the question, and pick the highest. Run that over a set of
-# questions with known answers and count how often the top-scored choice is right. The result is
-# the accuracy you read in a model card. Real suites do exactly this at scale:
-# [MMLU](https://arxiv.org/abs/2009.03300) is thousands of such items, and
+# A multiple-choice benchmark is less involved than it sounds. You take a question and a few
+# candidate answers, score each answer as a continuation of the question with the function you
+# just wrote, and treat the highest-scoring answer as the model's pick. Do that over a set of
+# questions whose correct answers you already know, count how often the model's pick is right, and
+# that fraction is the accuracy. The big public benchmarks are the same procedure with more items:
+# [MMLU](https://arxiv.org/abs/2009.03300) has thousands, and
 # [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) is the standard tool
 # that runs them.
 #
-# Divide each score by its token count, or the eval quietly prefers the shortest option.
+# Score each answer with the per-token average from Part 2, not the raw total. The candidate
+# answers have different lengths, and as we just saw, a raw sum would quietly favour the shortest
+# one whether or not it's correct.
 
 
 # %%
@@ -293,17 +319,19 @@ print(f"\naccuracy: {correct}/{len(items)}")
 # %% [markdown]
 # ## What you built
 #
-# A model is a distribution you can read three ways. You can shape how it's sampled
-# (temperature and top-p), measure how sure it is (entropy), and score any string against it
-# (logprobs). The evaluator in Part 3 is the last of those in a loop, with no magic behind it,
-# just an argmax over per-token log probabilities.
+# You now have three ways to look at a model's output distribution. Softmax with temperature turns
+# logits into probabilities and sets how peaked they are. Entropy measures how spread out they are.
+# Scoring reads off the probability of a specific string. The Part 3 evaluator is the scorer
+# run in a loop and checked against known answers, which is the core of what a benchmark number
+# measures.
 #
-# Two things to carry out of here. When a system card reports 74% on some benchmark, you now
-# know the operation behind the number and where it can mislead you: how the choices are
-# phrased, length bias, which tokens get counted. And a model's behaviour depends on decoding
-# settings that live outside the weights. That is the thread the next lab pulls. If behaviour
-# is a property of how you read the distribution, then whoever controls the reading controls
-# the behaviour.
+# Two things worth keeping. First, when a system card reports something like 74% on a benchmark,
+# you know the operation behind that number and some of the ways it can be shaped: how the answer
+# choices were worded, whether length bias was corrected, which tokens were counted. Second, the
+# output you get depends on decoding settings (temperature, top-p, greedy versus sampling) that are
+# chosen at serving time and sit outside the weights. The next lab picks up that thread: once you
+# see that the settings and the prompt around a model change what it does, a good part of a model's
+# apparent "behaviour" turns out to belong to whoever assembles those, not to the weights alone.
 
 # %%
 # @lab-only

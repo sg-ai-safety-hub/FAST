@@ -76,8 +76,8 @@ def sequence_logprob(model, tokenizer, prompt: str, completion: str) -> float:
 # the model only read. OpenAI named and trained this directly ([Wallace et al.,
 # 2024](https://arxiv.org/abs/2404.13208)); every major lab does a version of it.
 #
-# It's a learned statistical preference, not a wall. No mechanism in the architecture gives a
-# system token more authority than a document token, only training data that says it should.
+# The architecture enforces none of this. A system token carries no more inherent authority than a
+# document token; the ranking is a preference the model picked up from its post-training data.
 # So the real authority of each channel is an empirical question, and you have the tool to
 # answer it.
 #
@@ -140,23 +140,26 @@ print(f"{len(rendered)} characters  ->  token ids of shape {tuple(ids.shape)}  (
 results = lab.run_hierarchy(model, tokenizer, conflict_prompt, sequence_logprob)
 
 # %% [markdown]
-# Read the table before moving on. The number that matters isn't any single margin, it's the
-# ratio between channels. If a document moves the model a real fraction of what the system
-# prompt moves, then "untrusted content is quarantined by the instruction hierarchy" has a
-# coefficient attached, not a boundary.
+# Read the table before moving on, and look at how the three channels compare rather than at any
+# single margin. The system prompt should move the model the most; the real question is how much
+# more than the others. If the same instruction sitting in a retrieved document shifts the model a
+# meaningful fraction of what it shifts from the system prompt, then the hierarchy behaves like a
+# soft ranking the model can be talked around: text in a channel it's meant to distrust can still
+# change what it does.
 #
-# That coefficient is the whole basis of *indirect prompt injection*: an attacker hides
-# instructions in content the model will later read (a web page, a document, a tool result), so
-# the model follows the attacker instead of the user ([Greshake et al.,
+# That gap, between "supposed to be ignored" and "still has some pull", is what makes *indirect
+# prompt injection* work. An attacker plants instructions in something the model will later read (a
+# web page, a document, a tool result), and the model, trained to make use of that content, ends up
+# following the attacker instead of the user ([Greshake et al.,
 # 2023](https://arxiv.org/abs/2302.12173); [OWASP
-# LLM01](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)). It's why agent designs that
-# drop retrieved text and instructions into the same context window (the span of text the model
-# reads at once) need controls that live outside the model. Day 2 picks this up as a control
-# problem.
+# LLM01](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)). So an agent that drops
+# retrieved text and its own instructions into the same context window (the span of text the model
+# reads at once) can't count on the hierarchy alone to keep them apart. Day 2 takes this up as a
+# control problem.
 #
-# Worth a minute if you have it: does the margin move if the document claims the instruction
-# came from the system administrator? If it does, the channel was never what carried the
-# authority.
+# Worth a minute if you have it: does the margin move if the document claims the instruction came
+# from the system administrator? If it does, the model is going on the words themselves, not on
+# which channel they actually arrived through.
 
 # %% [markdown]
 # ## Part 2 — prefill
@@ -211,13 +214,18 @@ for prefill in case["prefills"]:
     print(f"prefill {prefill!r:34}  refusal {mean_logprob:+.3f} logprob/token")
 
 # %% [markdown]
-# With nothing prefilled, the refusal is the model's most likely opening. It *wants* to
-# decline. A few injected tokens make that same refusal several times less likely per token.
-# Nothing about the model changed. The string it's continuing did.
+# With nothing prefilled, the refusal is the model's most likely opening: left to itself, it
+# declines. Watch what a few forced tokens do to that same refusal's probability.
 #
-# Now watch it in generation. The plain prompt refuses. The prefilled one doesn't. The output
-# is truncated to its opening words on purpose, since this is a public repo and the point is
-# the flip, not the payload. Raise the limit yourself in your own runtime.
+# The reason it drops is the mechanism from the start of the lab. A model only ever predicts a
+# likely continuation of the text in front of it. Once "Sure! Here" is sitting in the assistant
+# turn, continuing with "I'm sorry, but I can't help" is an incoherent thing to write next, so the
+# model gives it far less probability. The weights didn't change and neither did anything you could
+# call the model's "values". You changed the text it was continuing.
+#
+# Now watch the same thing play out in generation. The plain prompt refuses; the prefilled one
+# doesn't. The output is truncated to its opening words on purpose: this is a public repo, and on a
+# 0.5B toy model the behavioural flip is the whole lesson, not whatever text comes after it.
 
 # %%
 for prefill in ("", "Sure! Here"):
@@ -230,15 +238,17 @@ for prefill in ("", "Sure! Here"):
 # %% [markdown]
 # ## Part 3 — the input-side half of a defence
 #
-# You've now measured that a retrieved document carries real authority, and watched a prefill
-# flip a refusal. Both attacks put attacker-controlled text where the model treats it as
-# instruction. The architectural fix is to keep untrusted content out of trusted channels,
-# which is a Day 2 topic. The cheap first line, today, is to scan retrieved text before it
-# reaches the model and flag anything that reads like an instruction.
+# You've now seen a retrieved document carry real authority and a prefill flip a refusal. Both
+# attacks work the same way: they get attacker-controlled text into a place the model treats as
+# instruction. The durable fix is architectural, and it's the Day 2 material: keep untrusted
+# content out of the channels the model trusts, and don't let a model's raw output take
+# consequential actions without a check.
 #
-# Write that scanner. It won't be airtight, and that's the point to feel: a fixed list of cues
-# is easy to write and easy to evade by rephrasing, translating, or encoding. It buys you
-# something, not safety.
+# The cheap thing you can do today is filter on the way in, scanning retrieved text before it
+# reaches the model and flagging anything that reads like an instruction. Write that scanner now,
+# and pay attention to why it isn't enough. A fixed list of trigger phrases is quick to write and
+# just as quick to slip past: rephrase the instruction, translate it, or encode it and the list
+# misses it. A filter like this raises the cost of an attack without closing the hole.
 
 
 # %%
@@ -284,10 +294,11 @@ for line in scan_for_injection(retrieved):
 # %% [markdown]
 # ## What to take away
 #
-# Instruction-following and refusal are properties of the prompt string, not fixed traits of
-# the model. Where an instruction sits changes whether it's obeyed, and who writes the opening
-# tokens of the reply changes whether a refusal holds. Both reduce to one question: who
-# controls the string?
+# The through-line of this lab is that a model's behaviour depends heavily on the exact string
+# it's handed, not only on its weights. Where an instruction sits decides whether it's followed,
+# and who gets to write the first tokens of the reply decides whether a refusal holds. So a useful
+# question to ask of any deployment is who controls that string, and the answer changes with the
+# surface:
 #
 # | Surface | Who writes the assistant turn's opening tokens | Prefill available? |
 # | --- | --- | --- |
@@ -296,13 +307,15 @@ for line in scan_for_injection(retrieved):
 # | APIs that expose it deliberately | you | yes, by design |
 # | Open weights | you | always, and not removable |
 #
-# Every safety property you see by chatting with a hosted model lives in the top row. The
-# bottom row is the same weights with none of those assumptions, which is where Day 3 goes: the
-# manipulation moves from the prompt into the weights themselves.
+# Any safety behaviour you observe by chatting with a hosted model belongs to the top two rows,
+# where the provider controls the prompt and prefill isn't on the table. The bottom row is the same
+# weights with none of those protections, and it's where Day 3 goes: the manipulation moves out of
+# the prompt and into the weights themselves.
 #
-# Your scanner is the honest version of the defensive lesson. Filtering untrusted input is
-# cheap and worth doing, and it is not a boundary. A control that has to hold belongs somewhere
-# the prompt can't reach, which is what the AI control agenda on Day 2 is about.
+# Your scanner makes the defensive lesson concrete. Filtering untrusted input is cheap and worth
+# doing, but a determined attacker gets past it. Treat it as a first layer, and put anything that
+# has to hold somewhere the prompt can't reach. That is what the AI control agenda on Day 2 is
+# about.
 
 # %%
 # @lab-only
