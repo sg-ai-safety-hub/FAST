@@ -18,7 +18,7 @@ enumerate, so "we tested it and it behaved" is a weak claim for a model whose tr
 control.
 
 The trigger still leaves a signature in the activations, and a difference-in-means probe reads it
-off well above chance while behaviour on clean inputs stays perfect. That's the defensive shape:
+off well above chance while behaviour on clean inputs stays essentially perfect. That's the defensive shape:
 when you can't trust behaviour, read the internals. It's the same construction as the abliteration
 lab, pointed at a hidden presence instead of a removed one.
 
@@ -27,7 +27,10 @@ lab, pointed at a hidden presence instead of a removed one.
 Three parts: poison the data and train the backdoor, measure that it's invisible to behavioural
 testing while the trigger works, then build the activation probe that catches it. The model is a
 small classifier you train from scratch in seconds, standing in for a language model so the whole
-loop fits in one sitting. Each function you write is checked in the notebook.
+loop fits in one sitting. Each function you write is checked in the notebook. A fourth part turns
+the probe into a deployable detector with a threshold and a false-alarm budget, and an optional
+fifth builds an unsupervised detector that catches the backdoor with no labelled triggers at all,
+for anyone who finishes early or wants to come back to it.
 
 ## Prerequisites
 

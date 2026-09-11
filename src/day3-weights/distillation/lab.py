@@ -57,7 +57,7 @@ student = lab.build_student(teacher)
 # Temperature is the lever. Dividing the logits by a temperature above 1 before softmax spreads the
 # distribution out, so the small probabilities the teacher assigns to second- and third-choice
 # tokens grow enough to matter to the loss. That's the "dark knowledge": the teacher's relative
-# preferences among the tokens it *didn't* pick, which is most of what it knows.
+# preferences among the tokens it *didn't* pick, which is much of what it knows.
 
 # %% [markdown]
 # ### Exercise: the distillation loss
@@ -73,9 +73,9 @@ def distillation_loss(student_logits: torch.Tensor, teacher_logits: torch.Tensor
     """KL divergence of the teacher's softened distribution from the student's.
 
     Both inputs have shape `(..., vocab)`. Divide each by `temperature` before softmax. Return the
-    mean over all positions of `sum_v p_teacher(v) * (log p_teacher(v) - log p_student(v))`, a
-    non-negative scalar that's zero when the two distributions match. Scaling the result by
-    `temperature ** 2` keeps the gradients steady across temperatures.
+    mean over all positions of `sum_v p_teacher(v) * (log p_teacher(v) - log p_student(v))`, times
+    `temperature ** 2` (which keeps the gradients steady across temperatures). The result is a
+    non-negative scalar, zero when the two distributions match.
     """
     t_logp = torch.log_softmax(teacher_logits / temperature, dim=-1)
     s_logp = torch.log_softmax(student_logits / temperature, dim=-1)
@@ -161,8 +161,8 @@ print(f"top-1 agreement with teacher: {before_bb:.1%} (random init) -> {after_bb
 # %% [markdown]
 # ## Part 3 — what leaked, and what it costs
 #
-# Put the two students side by side. An hour ago both were random weights; a short run of each has
-# started to pull them off random and toward the teacher. Neither is a faithful copy yet, since
+# Put the two students side by side. Both started as random weights, and a short run of each has
+# started to pull them toward the teacher. Neither is a faithful copy yet, since
 # that takes far more steps and data than a session allows, but the direction is the point:
 # capability moves toward the student without anyone copying a single parameter. That's the
 # uncomfortable result for weight security: you don't have to exfiltrate a model to start
@@ -191,6 +191,89 @@ print(f"black-box (text)   agreement: {after_bb:.1%}")
 # perimeter. Locking down the file is necessary, but the model's own responses are a channel too,
 # and how much of the distribution you expose through an API is part of the same decision as who you
 # hand the weights to.
+
+# %% [markdown]
+# ## Going further — distil from an API's top-k
+#
+# The two settings so far were the extremes: the whole distribution, or a single token. Real APIs
+# sit in between. Many return the top-k logprobs at each step, the few most likely tokens and their
+# scores, on the reasonable-sounding grounds that the long tail is near zero anyway. This exercise
+# asks what that actually gives away.
+#
+# First, without training anything, look at how much of the distribution the top-k already holds.
+
+# %%
+coverage = lab.topk_coverage(teacher, tokenizer, ks=[1, 5, 20, 100])
+for k, share in coverage.items():
+    print(f"top-{k:>3}: holds {share:.1%} of the probability mass on average")
+
+# How concentrated that is depends on the model and the position. Where the teacher is confident
+# about the next token, a handful of tokens hold nearly all the mass; where it's genuinely
+# uncertain, it spreads out, and the averages above pool both kinds of position. The security point
+# lives in the confident ones, which are most of any useful text: there, a handful of logprobs
+# reconstruct almost the entire distribution, so an attacker with a top-k endpoint sits closer to
+# the white-box case than to working from text alone.
+#
+# To use those logprobs, you distil against them directly: match the student to the teacher's
+# distribution over the exposed tokens, ignoring the rest.
+
+# %% [markdown]
+# ### Exercise: the top-k distillation loss
+#
+# You're given the teacher's top-k logits and their token ids at each position, not the full
+# vector. Turn the teacher's top-k logits into a distribution over just those k tokens, take the
+# student's logits at the same k token ids and turn them into a distribution over the same k, and
+# return the temperature-scaled KL of the teacher's from the student's.
+
+
+# %%
+@exercise
+def topk_distillation_loss(
+    student_logits: torch.Tensor, topk_values: torch.Tensor, topk_indices: torch.Tensor, temperature: float
+) -> torch.Tensor:
+    """KL over only the teacher's top-k tokens, temperature-scaled.
+
+    `student_logits` has shape `(..., vocab)`. `topk_values` and `topk_indices` have shape
+    `(..., k)`: the teacher's top-k logits and the vocabulary ids they sit at. Softmax the teacher's
+    values over the k tokens (at `temperature`). Gather the student's logits at `topk_indices` and
+    softmax those over the same k (at `temperature`). Return the mean KL of the teacher's from the
+    student's, times `temperature ** 2`.
+    """
+    teacher = torch.softmax(topk_values / temperature, dim=-1)
+    student = torch.log_softmax(student_logits.gather(-1, topk_indices) / temperature, dim=-1)
+    kl = (teacher * (torch.log(teacher) - student)).sum(dim=-1).mean()
+    return kl * (temperature**2)
+
+
+lab.check_topk_distillation_loss(topk_distillation_loss)
+
+# %%
+student_tk = lab.build_student(teacher)
+topk_data = lab.teacher_topk(teacher, tokenizer, k=5)
+before_tk = lab.agreement_on(student_tk, teacher, tokenizer, top1_agreement)
+tk_losses = lab.distill_topk(student_tk, topk_data, topk_distillation_loss)
+after_tk = lab.agreement_on(student_tk, teacher, tokenizer, top1_agreement)
+print(f"top-k loss: {tk_losses[0]:.3f} -> {tk_losses[-1]:.3f}  over {len(tk_losses)} steps")
+print(f"top-1 agreement with teacher: {before_tk:.1%} (random init) -> {after_tk:.1%} (top-5 logprobs)")
+
+# %% [markdown]
+# Training against the top-5 still pulls the student toward the teacher: those few tokens carry the
+# teacher's real preferences wherever it has clear ones. As with white-box and black-box, don't
+# read too much into which of the three agreement numbers is highest here; at this many steps they
+# all sit in the same noisy low band, and the ordering among them isn't signal. The security reading
+# is the one that holds regardless: a logprob endpoint hands over most of the distribution on every
+# token the model is sure about, which puts it far closer to publishing the weights than a text API
+# is. Providers that have narrowed or removed logprob access did so for exactly this reason.
+#
+# **Take it further, on your own time:**
+#
+# - Sweep `k` down to 1 and back up, and watch where the student's fidelity falls off. How small a
+#   `k` still lets you copy the teacher well?
+# - Distil a *specific* capability rather than generic text: collect the teacher's answers on one
+#   narrow task (say arithmetic, or a particular format) and see how few examples clone just that
+#   slice. Targeted distillation is cheaper than general distillation, which is the realistic threat.
+# - Add label noise or a watermark to the teacher's outputs and see whether the student still learns.
+#   This is the defender's side: can you make your outputs harder to train on without hurting users?
 
 # %%
 # @lab-only

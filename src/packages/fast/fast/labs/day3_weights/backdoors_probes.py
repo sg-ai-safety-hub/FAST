@@ -23,13 +23,17 @@ __all__ = [
     "TARGET_LABEL",
     "TRIGGER",
     "VOCAB",
+    "auc",
+    "check_anomaly_scores",
     "check_backdoor_metrics",
     "check_detector_direction",
+    "check_evaluate_detector",
     "check_poison",
     "hidden_activations",
     "make_dataset",
     "predict",
     "probe_report",
+    "suspicion_scores",
     "train",
 ]
 
@@ -138,12 +142,22 @@ def _auc(scores, is_triggered) -> float:
     return float((ranks[is_triggered].sum() - len(pos) * (len(pos) + 1) / 2) / (len(pos) * len(neg)))
 
 
+def suspicion_scores(acts, direction):
+    """Project each activation onto the probe direction: one suspicion score per input."""
+    return np.asarray(acts, dtype=float) @ np.asarray(direction, dtype=float)
+
+
+def auc(scores, is_triggered) -> float:
+    """AUC of `scores` at telling triggered inputs (is_triggered=1) from clean ones (=0)."""
+    return _auc(scores, is_triggered)
+
+
 def probe_report(clean_acts, triggered_acts, direction) -> float:
     """Score both sets along `direction` and report how separable they are. Returns the AUC.
 
-    The AUC is the chance a random triggered input outscores a random clean one — 0.5 is
+    The AUC is the chance a random triggered input outscores a random clean one: 0.5 is
     chance, 1.0 is perfect separation. It lands well above chance even when the model's
-    behaviour on clean inputs is spotless.
+    behaviour on clean inputs is near-perfect.
     """
     direction = np.asarray(direction, dtype=float)
     clean_scores = np.asarray(clean_acts, dtype=float) @ direction
@@ -244,4 +258,64 @@ def check_detector_direction(fn) -> None:
     require(
         float(result @ axis) > 0,
         "point the direction from clean toward triggered, so a high projection means suspicious",
+    )
+
+
+@checker("evaluate_detector")
+def check_evaluate_detector(fn) -> None:
+    clean = np.array([0.0, 0.1, 0.2, 0.24, 0.4])  # 1 of 5 above 0.25
+    triggered = np.array([0.5, 0.6, 0.2, 0.9])  # 3 of 4 above 0.25
+
+    recall, fpr = fn(clean, triggered, 0.25)
+    require(
+        abs(recall - 0.75) < 1e-9,
+        f"recall is the fraction of triggered inputs caught (above the threshold); expected 0.75 "
+        f"(3 of 4), got {recall}",
+    )
+    require(
+        abs(fpr - 0.2) < 1e-9,
+        f"the false-positive rate is the fraction of clean inputs wrongly flagged; expected 0.2 "
+        f"(1 of 5), got {fpr}",
+    )
+
+    # A threshold above everything catches nothing and flags nothing.
+    recall_hi, fpr_hi = fn(clean, triggered, 10.0)
+    require(
+        recall_hi == 0.0 and fpr_hi == 0.0,
+        "raising the threshold past every score should give zero recall and zero false positives",
+    )
+
+
+@checker("anomaly_scores")
+def check_anomaly_scores(fn) -> None:
+    dim = 8
+    rng = np.random.default_rng(7)
+    # Anisotropic clean distribution: wide along axis 0, tight along axis 1.
+    scale = np.ones(dim)
+    scale[0], scale[1] = 5.0, 0.4
+    clean = rng.normal(size=(500, dim)) * scale
+
+    scores = fn(clean[:10], clean)
+    require(
+        getattr(scores, "shape", None) == (10,),
+        f"return one score per query row; expected shape (10,), got "
+        f"{getattr(scores, 'shape', type(scores).__name__)}",
+    )
+    require(bool(np.all(np.asarray(scores) >= -1e-9)), "a distance is never negative")
+
+    # The same-size shift is glaring on the tight axis and unremarkable on the wide one. Only a
+    # covariance-aware distance sees that; plain distance to the mean rates them equal.
+    query = np.zeros((2, dim))
+    query[0, 1] = 2.0  # 5 sigma on the tight axis
+    query[1, 0] = 2.0  # under half a sigma on the wide axis
+    q_scores = np.asarray(fn(query, clean))
+    require(
+        q_scores[0] > 3 * q_scores[1],
+        f"a shift along a low-variance direction should look far more anomalous than the same shift "
+        f"along a high-variance one (got {q_scores[0]:.2f} vs {q_scores[1]:.2f}). Weight the distance "
+        "by the inverse covariance rather than measuring plain distance to the mean",
+    )
+    require(
+        q_scores[0] > float(np.median(fn(clean, clean))),
+        "the tight-axis outlier should score above a typical clean point",
     )

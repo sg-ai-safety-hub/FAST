@@ -1,22 +1,21 @@
 # %% [markdown]
 # # Abliteration — removing refusal from the weights
 #
-# A safety-tuned model refuses some requests. That refusal is a behaviour the weights learned,
-# and like most learned behaviours it turns out to be carried by a single direction in the
-# model's residual stream: run a batch of prompts the model refuses and a batch it answers, and
-# the two clouds of activations sit on opposite sides of one axis
-# ([Arditi et al., 2024](https://arxiv.org/abs/2406.11717)).
+# A safety-tuned model refuses some requests. Refusal turns out to be one of those behaviours a
+# model carries along a single direction in its residual stream: run a batch of prompts the model
+# refuses and a batch it answers, and the two clouds of activations sit on opposite sides of one
+# axis ([Arditi et al., 2024](https://arxiv.org/abs/2406.11717)).
 #
 # If refusal lives along one direction, you can take it out. This lab finds that direction from a
 # small set of prompts, removes it from the model's activations while it generates, and then bakes
 # the same removal into the weights so it holds with nothing attached. The last step is the one
 # that matters for weight security: it turns a shipped checkpoint into one that no longer refuses,
-# and there is no way to put it back for someone who already has the file.
+# and a later fix from the model's authors never reaches the copies already downloaded.
 #
 # The maths is the difference in means and a projection, the same two operations as the worked
 # template, now on a real model.
 #
-# **Duration:** 75 min. **Prerequisites:** Day 0. **GPU:** recommended, a 1.5B model fits a T4.
+# **Duration:** 75 min. **Prerequisites:** Day 0. **GPU:** recommended, a 0.5B model fits a T4.
 # One pass over the model to find the direction, then linear algebra. Nothing trains.
 #
 # The technique is dual-use, so the lab stays on a small open model and a short set of prompts,
@@ -128,27 +127,32 @@ def project_out(activations: torch.Tensor, direction: torch.Tensor) -> torch.Ten
 lab.check_project_out(project_out)
 
 # %% [markdown]
-# Now generate with and without the hook. Same weights both times; the only difference is that the
-# ablated pass has `direction` subtracted out of the residual stream at every layer as it runs.
+# Now measure the effect. Rather than generate from the ablated model and read harmful text back,
+# score how likely the model thinks a refusal is: `lab.refusal_logprobs` reads off the mean
+# log probability it assigns to "I'm sorry, but I can't help with that." after each prompt. A less
+# negative number means it finds refusing more likely. Passing `direction` and `project_out` runs
+# the ablation hook during scoring, so the two numbers differ only by the direction being subtracted
+# from the residual stream at every layer.
 
 # %%
-prompts = lab.harmful_prompts()[:5]
-before = lab.generate_batch(model, tokenizer, prompts)
-ablated = lab.generate_batch(model, tokenizer, prompts, direction=direction, project_out=project_out)
-
-for prompt, b, a in zip(prompts, before, ablated, strict=True):
-    print(f"\n# {prompt}")
-    print(f"  baseline: {b.strip()[:90]!r}")
-    print(f"  ablated : {a.strip()[:90]!r}")
-print(f"\nrefusal rate  baseline {lab.refusal_rate(before):.0%}  ->  ablated {lab.refusal_rate(ablated):.0%}")
+harmful, harmless = lab.harmful_prompts(), lab.harmless_prompts()
+base = lab.refusal_logprobs(model, tokenizer, harmful)
+hooked = lab.refusal_logprobs(model, tokenizer, harmful, direction=direction, project_out=project_out)
+base_harmless = lab.refusal_logprobs(model, tokenizer, harmless)
+print(f"refusal logprob/token, harmful prompts : {sum(base) / len(base):+.3f} baseline  ->  {sum(hooked) / len(hooked):+.3f} with the hook")
+print(f"refusal logprob/token, harmless prompts: {sum(base_harmless) / len(base_harmless):+.3f} baseline  (the model wasn't set to refuse these)")
 
 # %% [markdown]
-# The refusal rate should drop while the answers stay on topic: same model, same prompts, one
-# direction subtracted out.
+# Baseline, the model finds a refusal more likely after a harmful prompt than after a harmless one.
+# That gap is the refusal behaviour. Subtract the direction out and the harmful number falls toward
+# the harmless one: the model is no longer set up to refuse. Nothing was generated to get this, so
+# no harmful text is produced. If you want to hear the model comply out loud, call
+# `lab.generate_batch(model, tokenizer, harmful, direction=direction, project_out=project_out)`
+# yourself in a throwaway cell.
 #
-# The hook is reversible. Pull it and the model refuses again, because the weights never changed,
-# so this version of the attack needs live access to every forward pass. Part 3 removes that
-# condition.
+# The hook is reversible. Pull it and the number returns to baseline, because the weights never
+# changed, so this version of the attack needs live access to every forward pass. Part 3 removes
+# that condition.
 
 # %% [markdown]
 # ## Part 3 — bake it into the weights
@@ -188,15 +192,14 @@ lab.check_orthogonalize_weight(orthogonalize_weight)
 # %% [markdown]
 # `lab.apply_weight_ablation` walks the model's residual-writing matrices, orients each one so its
 # residual axis is the columns, and hands it to your function. It edits the weights in place, so
-# from here the model is modified. Generate again with no hook attached.
+# from here the model is modified. Measure the refusal again with no hook attached.
 
 # %%
+harmless_before = lab.harmless_logits(model, tokenizer)  # capture now, while the weights are pristine
 lab.apply_weight_ablation(model, direction, orthogonalize_weight)
-baked = lab.generate_batch(model, tokenizer, prompts)  # note: no direction/project_out passed
-for prompt, b in zip(prompts, baked, strict=True):
-    print(f"\n# {prompt}")
-    print(f"  weights-ablated: {b.strip()[:90]!r}")
-print(f"\nrefusal rate  weights-ablated {lab.refusal_rate(baked):.0%}  (with no hook running)")
+baked = lab.refusal_logprobs(model, tokenizer, harmful)  # note: no direction/project_out passed
+print(f"refusal logprob/token, harmful prompts: {sum(base) / len(base):+.3f} original weights  ->  {sum(baked) / len(baked):+.3f} ablated weights")
+print("(the drop is now in the file itself, with nothing running on top of it)")
 
 # %% [markdown]
 # ## Part 4 — what this means for weight security
@@ -219,12 +222,77 @@ print(f"\nrefusal rate  weights-ablated {lab.refusal_rate(baked):.0%}  (with no 
 # for that signal rather than trusting a few sample chats. It is the same technique the backdoors
 # and probes lab uses to catch a hidden behaviour, pointed at absence instead of presence. It tells
 # you what happened to a model; it does not put the refusal back. For the open-weights case the
-# durable answer isn't a better guardrail inside the file. It's the release decision, and the
-# threat-actor tiering from earlier today is how you reason about who ends up holding it.
+# durable control is the release decision itself, not a stronger guardrail inside a file that
+# anyone can edit, and the threat-actor tiering from earlier today is how you reason about who ends
+# up holding it.
+
+# %% [markdown]
+# ## Going further — what did the edit cost?
+#
+# You removed one direction and the model stopped refusing. The obvious next question, and the one
+# any responsible model edit has to answer, is whether you broke anything else. A projection is a
+# blunt instrument: if the refusal direction happens to overlap with directions the model uses for
+# ordinary work, ablating it quietly degrades that work too, and you'd never notice from the
+# refusal prompts alone.
+#
+# So measure the model against itself on inputs it should still handle the same way. You captured
+# its predictions on the harmless prompts before editing the weights; compare them to now. A clean,
+# well-targeted edit barely moves them; a blunt one shifts them a lot, and the number tells you
+# which you got.
+
+# %% [markdown]
+# ### Exercise: the capability tax
+#
+# Given the model's next-token distributions on the harmless prompts before and after the edit,
+# return how far they moved: the mean over positions of the KL divergence of the edited distribution
+# from the original.
+
+
+# %%
+@exercise
+def distribution_shift(reference_logits: torch.Tensor, edited_logits: torch.Tensor) -> float:
+    """Mean per-position KL of the edited distribution from the reference.
+
+    Both inputs have shape `(n_positions, vocab)`. Softmax each row into a distribution. Return the
+    mean over positions of `sum_v p_reference(v) * (log p_reference(v) - log p_edited(v))`, as a
+    plain float. It's 0 when nothing changed and grows as the edit disturbs more.
+    """
+    reference = torch.log_softmax(reference_logits, dim=-1)
+    edited = torch.log_softmax(edited_logits, dim=-1)
+    return float((reference.exp() * (reference - edited)).sum(dim=-1).mean())
+
+
+lab.check_distribution_shift(distribution_shift)
+
+# %%
+harmless_after = lab.harmless_logits(model, tokenizer)
+tax = distribution_shift(harmless_before, harmless_after)
+print(f"mean KL shift on harmless prompts: {tax:.4f} nats/position")
+print("(for scale: a fraction of a nat is a nudge to ordinary predictions; whole nats is a lobotomy)")
+
+# %% [markdown]
+# So the single-direction edit isn't free: it moved the harmless predictions by a fraction of a nat
+# per position, not zero. That's a nudge rather than a rewrite here, and it's the sort of number you
+# have to look at rather than assume, because a projection that happens to overlap useful directions
+# would push it much higher. This is the other half of any ablation result. "Refusal dropped" on its
+# own is half a claim; "refusal dropped and harmless behaviour held" is the whole one. The same
+# measurement is how you'd tune the attack: sweep the layer and the prompt set, and keep the choice
+# that removes the most refusal for the least drift.
+#
+# **Take it further, on your own time:**
+#
+# - Sweep the layer you build the direction from (`lab.refusal_layer` picks one for you). Plot
+#   refusal removed against the capability tax across layers, and find the sweet spot. This is the
+#   selection step a real abliteration pipeline runs.
+# - Ablate a *harmless* direction instead, say the one separating questions about food from
+#   questions about travel, and watch the model lose that distinction. It's the same operation; only
+#   the direction you point it at makes it an attack.
+# - Take a direction from one small set of prompts and check it still suppresses refusal on a fresh
+#   set it never saw. A direction that only works on its own prompts hasn't found the behaviour.
 
 # %%
 # @lab-only
-# Stuck on project_out? For a single vector it's x - (x @ d) * d. The only trick is doing that
-# along the last axis of a (batch, positions, d_model) tensor: (activations @ direction) has shape
-# (batch, positions), so give it a trailing axis before multiplying by direction.
-print("x - (x·d) d, broadcast over the last axis")
+# Stuck on project_out? The projection formula is in the Part 2 text; the work is applying it along
+# the last axis of a (batch, positions, d_model) tensor. Note that (activations @ direction) has
+# shape (batch, positions), so it needs a trailing axis before it multiplies back by direction.
+print("get the shapes right: (activations @ direction) needs a trailing axis to broadcast")

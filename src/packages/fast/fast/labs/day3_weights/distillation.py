@@ -25,10 +25,14 @@ __all__ = [
     "check_distillation_loss",
     "check_sequence_ce_loss",
     "check_top1_agreement",
+    "check_topk_distillation_loss",
     "distill_black_box",
+    "distill_topk",
     "distill_white_box",
     "load_teacher",
     "teacher_responses",
+    "teacher_topk",
+    "topk_coverage",
 ]
 
 # Short, neutral prompts. The teacher's next-token distribution over these is what the student
@@ -156,6 +160,69 @@ def distill_black_box(student, sequences, tokenizer, sequence_ce_loss, steps=Non
     return losses
 
 
+def teacher_topk(teacher, tokenizer, k=5):
+    """The teacher's top-k logits and their token ids at every position of each prompt.
+
+    This is what a logprob API hands back: not the full distribution, just the few most likely
+    tokens and their scores. Returns a list of `(ids, topk_values, topk_indices)`, one per prompt.
+    """
+    import torch
+
+    out = []
+    for prompt in PROMPTS:
+        ids = _ids(tokenizer, prompt, teacher.device)
+        with torch.no_grad():
+            logits = teacher(ids).logits[0]
+        values, indices = torch.topk(logits, k, dim=-1)
+        out.append((ids, values, indices))
+    return out
+
+
+def distill_topk(student, data, topk_distillation_loss, temperature=2.0, steps=None):
+    """Train the student to match the teacher on only its top-k tokens per position.
+
+    The middle ground between white-box and black-box: more than a single sampled token, far less
+    than the full distribution. Exactly what you can distil from an API that returns top-k logprobs.
+    """
+    import torch
+
+    if steps is None:
+        steps = 8 if ci_mode() else 200
+    opt = torch.optim.Adam(student.parameters(), lr=1e-3)
+    student.train()
+    losses = []
+    for step in range(steps):
+        ids, values, indices = data[step % len(data)]
+        student_logits = student(ids).logits[0]
+        loss = topk_distillation_loss(student_logits, values, indices, temperature)
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        losses.append(float(loss))
+    student.eval()
+    return losses
+
+
+def topk_coverage(teacher, tokenizer, ks):
+    """For each k, the mean share of probability mass the teacher's top-k tokens hold.
+
+    Deterministic, no training: it reads straight off the teacher. It answers how much a top-k
+    logprob response actually gives away, which is the whole question behind exposing logprobs.
+    """
+    import torch
+
+    coverage = {}
+    for k in ks:
+        shares = []
+        for prompt in PROMPTS:
+            ids = _ids(tokenizer, prompt, teacher.device)
+            with torch.no_grad():
+                probs = torch.softmax(teacher(ids).logits[0], dim=-1)
+            shares.append(float(probs.topk(k, dim=-1).values.sum(-1).mean()))
+        coverage[k] = sum(shares) / len(shares)
+    return coverage
+
+
 def agreement_on(student, teacher, tokenizer, top1_agreement, prompts=None):
     """Mean top-1 agreement between student and teacher over the prompts. The fidelity number.
 
@@ -208,6 +275,18 @@ def check_distillation_loss(fn) -> None:
         "Soften both with the temperature, then measure teacher-relative-to-student",
     )
 
+    # Temperature 2 pins two things at once: that the logits are actually softened by it, and that
+    # the result is scaled by temperature squared. At T=1 both are invisible.
+    t2 = torch.log_softmax(teacher / 2.0, dim=-1)
+    s2 = torch.log_softmax(near / 2.0, dim=-1)
+    reference_t2 = float((t2.exp() * (t2 - s2)).sum(-1).mean()) * (2.0**2)
+    got_t2 = float(fn(near, teacher, 2.0))
+    require(
+        abs(got_t2 - reference_t2) < 1e-3,
+        f"at temperature 2 this should be {reference_t2:.4f} (soften the logits by dividing by the "
+        f"temperature, then scale the KL by temperature squared), got {got_t2:.4f}",
+    )
+
 
 @checker("sequence_ce_loss")
 def check_sequence_ce_loss(fn) -> None:
@@ -255,4 +334,49 @@ def check_top1_agreement(fn) -> None:
         abs(got - 0.5) < 1e-9,
         f"agreement is the fraction of positions where the top token matches; this pair agrees on "
         f"2 of 4, so 0.5, got {got}",
+    )
+
+
+@checker("topk_distillation_loss")
+def check_topk_distillation_loss(fn) -> None:
+    import torch
+
+    g = torch.Generator().manual_seed(5)
+    teacher_logits = torch.randn(4, 30, generator=g)
+    values, indices = torch.topk(teacher_logits, 5, dim=-1)
+
+    same = float(fn(teacher_logits.clone(), values, indices, 1.0))
+    require(
+        abs(same) < 1e-4,
+        f"a student that matches the teacher on its top-k should score ~0, got {same:.4f}",
+    )
+
+    near = teacher_logits + 0.1 * torch.randn(4, 30, generator=g)
+    far = teacher_logits + 2.0 * torch.randn(4, 30, generator=g)
+    require(float(fn(near, values, indices, 1.0)) >= -1e-6, "a divergence is never negative")
+    require(
+        float(fn(far, values, indices, 1.0)) > float(fn(near, values, indices, 1.0)),
+        "a student further from the teacher on the exposed tokens should score higher",
+    )
+
+    # At temperature 1: KL of the teacher's top-k distribution from the student's over the same k.
+    teacher_dist = torch.softmax(values, dim=-1)
+    student_dist = torch.log_softmax(near.gather(-1, indices), dim=-1)
+    reference = float((teacher_dist * (torch.log(teacher_dist) - student_dist)).sum(-1).mean())
+    got = float(fn(near, values, indices, 1.0))
+    require(
+        abs(got - reference) < 1e-3,
+        f"restrict both to the k exposed tokens, then measure teacher-relative-to-student. "
+        f"Expected {reference:.4f} at temperature 1, got {got:.4f}",
+    )
+
+    # Temperature 2 pins the softening and the temperature-squared scaling, both invisible at T=1.
+    teacher_t2 = torch.softmax(values / 2.0, dim=-1)
+    student_t2 = torch.log_softmax(near.gather(-1, indices) / 2.0, dim=-1)
+    reference_t2 = float((teacher_t2 * (torch.log(teacher_t2) - student_t2)).sum(-1).mean()) * (2.0**2)
+    got_t2 = float(fn(near, values, indices, 2.0))
+    require(
+        abs(got_t2 - reference_t2) < 1e-3,
+        f"at temperature 2 this should be {reference_t2:.4f} (soften by dividing by the temperature, "
+        f"then scale by temperature squared), got {got_t2:.4f}",
     )

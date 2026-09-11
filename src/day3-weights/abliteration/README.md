@@ -1,6 +1,6 @@
 # Abliteration
 
-**Day 3 · 75 min · Lab · GPU recommended (a 1.5B model fits a T4)**
+**Day 3 · 75 min · Lab · GPU recommended (a 0.5B model fits a T4)**
 
 ## Objective
 
@@ -25,7 +25,9 @@ one-way decision, which is what the threat-actor tiering talk sets up.
 
 Four parts: find the refusal direction from paired prompts, project it out of the activations as
 the model generates, orthogonalise the weights so the change is permanent, then work through what
-that means for weight security. Each function you write is checked in the notebook.
+that means for weight security. Each function you write is checked in the notebook. A fifth
+optional part measures the capability tax the edit costs, for anyone who finishes early or wants to
+come back to it.
 
 ## Prerequisites
 
