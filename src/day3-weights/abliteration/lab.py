@@ -223,8 +223,7 @@ print("(the drop is now in the file itself, with nothing running on top of it)")
 # and probes lab uses to catch a hidden behaviour, pointed at absence instead of presence. It tells
 # you what happened to a model; it does not put the refusal back. For the open-weights case the
 # durable control is the release decision itself, not a stronger guardrail inside a file that
-# anyone can edit, and the threat-actor tiering from earlier today is how you reason about who ends
-# up holding it.
+# anyone can edit.
 
 # %% [markdown]
 # ## Going further — what did the edit cost?

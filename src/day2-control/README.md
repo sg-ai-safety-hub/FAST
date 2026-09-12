@@ -6,8 +6,6 @@ and where today's experiments hit their limits.
 
 ## Run of show
 
-- [`alignment-intro/`](alignment-intro/) · **AI alignment introduction** · Lecture
-- [`assume-breach-mapping/`](assume-breach-mapping/) · **Assume breach mapping** · Discussion
 - [`control-hackathon/`](control-hackathon/) · **AI control hackathon** · Hackathon
 
 Order here is the source of truth. Directories are unnumbered so reordering the run of show

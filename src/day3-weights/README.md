@@ -6,7 +6,6 @@ rerun on your own models back at work.
 
 ## Run of show
 
-- [`threat-actor-tiering/`](threat-actor-tiering/) · **Threat-actor tiering** · Talk
 - [`abliteration/`](abliteration/) · **Abliteration** · Lab
 - [`backdoors-probes/`](backdoors-probes/) · **Backdoors and probes** · Lab
 - [`distillation/`](distillation/) · **Distillation** · Lab

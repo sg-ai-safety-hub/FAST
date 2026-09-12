@@ -19,7 +19,7 @@ The security point is how cheap the permanent version is. Refusal training shift
 default behaviour, which is worth something when the provider holds the weights and you only send
 text. It does almost nothing against anyone who can read and edit the parameters, and that gap
 doesn't close once the file is released. This is the concrete reason weight release is a
-one-way decision, which is what the threat-actor tiering talk sets up.
+one-way decision.
 
 ## Structure
 

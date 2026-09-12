@@ -5,12 +5,8 @@ to find real information about a given model.
 
 ## Run of show
 
-- [`expectations/`](expectations/) · **Expectation exercise** · Worksheet
-- [`field-overview/`](field-overview/) · **The field and its research agendas** · Lecture
-- [`terminology-cards/`](terminology-cards/) · **AI safety terminology sort** · Card sort
 - [`output-distributions/`](output-distributions/) · **Output distributions & scoring** · Lab
 - [`instruction-hierarchy/`](instruction-hierarchy/) · **Instruction hierarchies & prefill** · Lab
-- [`system-card-hunt/`](system-card-hunt/) · **System card easter-egg hunt** · Timeboxed hunt
 
 The two labs run back to back with a break between them. They're independent: the first has you
 build a scoring function, and the second hands you that same function ready-made, so you can walk

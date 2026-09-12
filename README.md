@@ -16,13 +16,12 @@ and confirms your Colab account works. Doing it early is the whole point of it.
 | Day | | |
 | --- | --- | --- |
 | 0 | [Setup & Environment](src/day0-setup/) | Colab, GPU, smoke test |
-| 1 | [AI Models](src/day1-models/) | Terminology, system cards, evals, logprobs |
-| 2 | [Control](src/day2-control/) | Alignment, assume breach, control hackathon |
-| 3 | [Open Weight Security](src/day3-weights/) | Threat tiering, abliteration, backdoors, distillation |
-| 4 | [Verification](src/day4-verification/) | Racing dynamics, verification, wargaming |
-| 5 | [Next Steps](src/day5-next-steps/) | Funding, next steps, closing |
+| 1 | [AI Models](src/day1-models/) | Output distributions, instruction hierarchies |
+| 2 | [Control](src/day2-control/) | Control hackathon |
+| 3 | [Open Weight Security](src/day3-weights/) | Abliteration, backdoors, distillation |
 
-Each day's README lists that day in running order.
+The programme itself runs five days; this repo holds the hands-on material — the labs and the
+control hackathon. Each day's README lists that day in running order.
 
 ## Labs
 
