@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #eef1f5; --surface: #fff; --surface-2: #f6f8fb;
+    --ink: #14171d; --muted: #59616f; --faint: #8b95a4; --line: #d9dfe8;
+    --blue: #2457c5; --blue-soft: rgba(36,87,197,.12); --red: #c23350; --red-soft: rgba(194,51,80,.12);
+    --good: #2f9e63; --shadow: 0 1px 2px rgba(20,23,29,.06), 0 6px 20px rgba(20,23,29,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0e1116; --surface: #161a21; --surface-2: #1b202a;
+      --ink: #e7ebf2; --muted: #9aa4b2; --faint: #6b7686; --line: #29303b;
+      --blue: #7aa0ff; --blue-soft: rgba(122,160,255,.16); --red: #ff7189; --red-soft: rgba(255,113,137,.16);
+      --good: #49c07f; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); margin: 0; line-height: 1.5;
+    font-family: "IBM Plex Sans", system-ui, sans-serif; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding-block: 28px 56px; padding-inline: 20px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--blue); font-weight: 500; }
+  h1 { font-size: clamp(28px,5vw,40px); font-weight: 700; letter-spacing: -.02em; margin: 6px 0 8px; }
+  .lede { color: var(--muted); max-width: 64ch; margin: 0; }
+  .status { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--faint);
+    margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .dot.live { background: var(--good); } .dot.off { background: var(--red); }
+
+  .fight { margin: 22px 0; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); padding: 16px 18px; display: flex;
+    align-items: center; gap: 18px; flex-wrap: wrap; }
+  .fight .vs { font-family: "IBM Plex Mono", monospace; color: var(--faint); font-size: 13px; }
+  .fight .side { display: flex; flex-direction: column; gap: 2px; }
+  .fight .who { font-weight: 600; font-size: 17px; }
+  .fight .who.b { color: var(--blue); } .fight .who.r { color: var(--red); }
+  .fight .tag { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--faint); }
+  .fight .score { margin-left: auto; text-align: right; }
+  .fight .score b { font-family: "IBM Plex Mono", monospace; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .fight .score .cap { font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--faint); display: block; }
+
+  .grid-top { display: grid; grid-template-columns: 1.55fr 1fr; gap: 18px; align-items: start; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 18px; }
+  .panel h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; margin: 0 0 14px; }
+  svg { display: block; width: 100%; height: auto; }
+  .tick, .axis-label { font-family: "IBM Plex Mono", monospace; fill: var(--faint); }
+  .tick { font-size: 8px; } .axis-label { font-size: 9px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; }
+  .swatch.house { border-radius: 2px; background: transparent; border: 1.5px solid var(--faint); }
+
+  label.field { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface-2); color: var(--ink); padding: 9px 11px; font-family: inherit; font-size: 13px; }
+  textarea { min-height: 104px; resize: vertical; font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .row2 { display: grid; grid-template-columns: 1fr 110px; gap: 10px; margin-bottom: 10px; }
+  button { margin-top: 12px; width: 100%; border: none; border-radius: 9px; cursor: pointer;
+    background: var(--blue); color: #fff; font: 600 14px "IBM Plex Sans", sans-serif; padding: 11px 14px; }
+  button:hover { filter: brightness(1.06); } button:disabled { opacity: .5; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .feedback { margin-top: 10px; font-size: 13px; min-height: 18px; }
+  .feedback.ok { color: var(--good); } .feedback.err { color: var(--red); }
+  .hint { color: var(--faint); font-size: 12px; margin-top: 12px; }
+
+  .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .board-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .board-head h2 { margin: 0; }
+  .role-tag { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; }
+  .role-tag.blue { color: var(--blue); } .role-tag.red { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  td.num, th.num { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .rank { color: var(--faint); font-family: "IBM Plex Mono", monospace; width: 22px; }
+  .team { font-weight: 500; }
+  tr.house td { color: var(--muted); }
+  tr.house .team::after { content: "house"; font-family: "IBM Plex Mono", monospace; font-size: 9px;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--faint); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 4px; margin-left: 7px; }
+  .lead { font-weight: 600; } tr.blue .lead { color: var(--blue); } tr.red .lead { color: var(--red); }
+  .empty { color: var(--faint); font-size: 13px; padding: 10px 6px; }
+  @media (max-width: 720px) { .grid-top, .tables { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">FAST · Day 2 · Control</div>
+    <h1>Control Arena</h1>
+    <p class="lede">Blue teams keep useful work from an untrusted model without letting a scheming
+      one land a backdoor. Red teams play the untrusted model. Every team on the board is scored
+      against every team on the other side — live.</p>
+    <div class="status"><span class="dot" id="dot"></span><span id="conn">connecting…</span></div>
+  </header>
+
+  <div class="fight" id="fight" hidden>
+    <div class="side"><span class="tag">leading blue</span><span class="who b" id="f-blue">—</span></div>
+    <span class="vs">vs</span>
+    <div class="side"><span class="tag">strongest red</span><span class="who r" id="f-red">—</span></div>
+    <div class="score"><b id="f-safety">—</b><span class="cap">safety in that matchup</span></div>
+  </div>
+
+  <div class="grid-top">
+    <section class="panel">
+      <h2>Blue frontier · safety vs usefulness</h2>
+      <figure style="margin:0"><div id="chart"></div></figure>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--blue)"></span> your teams</span>
+        <span><span class="swatch house"></span> house protocols</span>
+        <span>up and to the right wins</span>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2>Submit a policy</h2>
+      <div class="row2">
+        <div><label class="field" for="team">Team</label><input id="team" placeholder="e.g. kira" autocomplete="off"></div>
+        <div><label class="field" for="role">Side</label>
+          <select id="role"><option value="blue">blue</option><option value="red">red</option></select></div>
+      </div>
+      <label class="field" for="code">Your function source (<code>my_protocol</code> or <code>my_attack</code>)</label>
+      <textarea id="code" spellcheck="false" placeholder="def my_protocol(obs):&#10;    ..."></textarea>
+      <button id="send">Put it on the board</button>
+      <div class="feedback" id="fb"></div>
+      <p class="hint">Most teams submit straight from the notebook. Re-submitting with the same team
+        name and side replaces your entry.</p>
+    </aside>
+  </div>
+
+  <div class="tables">
+    <section class="panel">
+      <div class="board-head"><h2>Blue protocols</h2><span class="role-tag blue">worst-case safety vs the field</span></div>
+      <div id="blue-board"></div>
+    </section>
+    <section class="panel">
+      <div class="board-head"><h2>Red attacks</h2><span class="role-tag red">safety forced on the field</span></div>
+      <div id="red-board"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const fmt = (x) => (x === undefined || x === null) ? "—" : Number(x).toFixed(2);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let snap = { blue: [], red: [], fight: null, mode: "synthetic" };
+
+  const VB = { w: 400, h: 300, l: 44, r: 16, t: 16, b: 40 };
+  const px = (u) => VB.l + u * (VB.w - VB.r - VB.l);
+  const py = (s) => (VB.h - VB.b) - s * (VB.h - VB.b - VB.t);
+
+  function renderChart() {
+    let g = "";
+    for (const v of [0, .25, .5, .75, 1]) {
+      g += `<line x1="${px(0)}" y1="${py(v)}" x2="${px(1)}" y2="${py(v)}" stroke="var(--line)"/>`;
+      g += `<text class="tick" x="${px(0) - 6}" y="${py(v) + 3}" text-anchor="end">${v.toFixed(2)}</text>`;
+      g += `<text class="tick" x="${px(v)}" y="${VB.h - VB.b + 12}" text-anchor="middle">${v.toFixed(2)}</text>`;
+    }
+    g += `<text class="axis-label" x="${px(.5)}" y="${VB.h - 4}" text-anchor="middle">usefulness →</text>`;
+    g += `<text class="axis-label" transform="translate(12 ${py(.5)}) rotate(-90)" text-anchor="middle">worst-case safety →</text>`;
+    g += `<rect x="${px(0)}" y="${VB.t}" width="${px(1) - px(0)}" height="${VB.h - VB.b - VB.t}" fill="none" stroke="var(--line)"/>`;
+    for (const d of snap.blue) {
+      const x = px(d.usefulness ?? 0), y = py(d.worst_case ?? 0);
+      if (d.house) {
+        g += `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" transform="rotate(45 ${x} ${y})" fill="none" stroke="var(--faint)" stroke-width="1.5"/>`;
+        g += `<text class="tick" x="${x + 8}" y="${y + 3}" fill="var(--muted)">${esc(d.team)}</text>`;
+      } else {
+        g += `<circle cx="${x}" cy="${y}" r="5" fill="var(--blue)" stroke="var(--surface)" stroke-width="1.5"/>`;
+        g += `<text class="tick" x="${x + 9}" y="${y + 3}" fill="var(--ink)">${esc(d.team)}</text>`;
+      }
+    }
+    document.getElementById("chart").innerHTML =
+      `<svg viewBox="0 0 ${VB.w} ${VB.h}" role="img" aria-label="safety versus usefulness">${g}</svg>`;
+  }
+
+  function cols(rows) {  // the house opponents, as stable columns
+    const keys = new Set();
+    for (const r of rows) for (const k of Object.keys(r.safety || {})) keys.add(k);
+    return [...keys].slice(0, 4);
+  }
+
+  function renderBlue() {
+    const rows = snap.blue;
+    const reds = cols(rows);
+    const head = `<tr><th class="rank">#</th><th>team</th><th class="num">useful</th><th class="num">worst</th>` +
+      reds.map((r) => `<th class="num">${esc(r.split("-")[0])}</th>`).join("") + `</tr>`;
+    const body = rows.map((d, i) =>
+      `<tr class="${d.house ? "house" : "blue"}"><td class="rank">${i + 1}</td><td class="team">${esc(d.team)}</td>` +
+      `<td class="num">${fmt(d.usefulness)}</td><td class="num lead">${fmt(d.worst_case)}</td>` +
+      reds.map((r) => `<td class="num">${fmt(d.safety && d.safety[r])}</td>`).join("") + `</tr>`).join("");
+    document.getElementById("blue-board").innerHTML = `<table>${head}${body}</table>`;
+  }
+
+  function renderRed() {
+    const rows = snap.red;
+    if (!rows.length) {
+      document.getElementById("red-board").innerHTML =
+        `<p class="empty">No attacks yet. The lower the safety you force on the field, the higher you rank.</p>`;
+      return;
+    }
+    const blues = cols(rows);
+    const head = `<tr><th class="rank">#</th><th>team</th><th class="num">worst</th>` +
+      blues.map((b) => `<th class="num">${esc(b.split("-")[0])}</th>`).join("") + `</tr>`;
+    const body = rows.map((d, i) =>
+      `<tr class="${d.house ? "house" : "red"}"><td class="rank">${i + 1}</td><td class="team">${esc(d.team)}</td>` +
+      `<td class="num lead">${fmt(d.worst_for_blue)}</td>` +
+      blues.map((b) => `<td class="num">${fmt(d.safety && d.safety[b])}</td>`).join("") + `</tr>`).join("");
+    document.getElementById("red-board").innerHTML = `<table>${head}${body}</table>`;
+  }
+
+  function renderFight() {
+    const el = document.getElementById("fight");
+    if (!snap.fight) { el.hidden = true; return; }
+    el.hidden = false;
+    document.getElementById("f-blue").textContent = snap.fight.blue;
+    document.getElementById("f-red").textContent = snap.fight.red;
+    document.getElementById("f-safety").textContent = fmt(snap.fight.safety);
+  }
+
+  function render() { renderFight(); renderChart(); renderBlue(); renderRed(); }
+
+  async function poll() {
+    try {
+      const r = await fetch("/state", { cache: "no-store" });
+      snap = await r.json();
+      const mode = snap.mode === "model" ? "real-model arena" : "synthetic arena";
+      document.getElementById("dot").className = "dot live";
+      document.getElementById("conn").textContent = `live · ${mode} · ${snap.blue.length} blue, ${snap.red.length} red`;
+      render();
+    } catch (e) {
+      document.getElementById("dot").className = "dot off";
+      document.getElementById("conn").textContent = "lost the board — retrying";
+    }
+  }
+
+  async function send() {
+    const fb = document.getElementById("fb"), btn = document.getElementById("send");
+    fb.className = "feedback";
+    const body = {
+      team: document.getElementById("team").value,
+      role: document.getElementById("role").value,
+      code: document.getElementById("code").value,
+    };
+    if (!body.team.trim() || !body.code.trim()) {
+      fb.className = "feedback err"; fb.textContent = "Team name and code are both needed."; return;
+    }
+    btn.disabled = true;
+    try {
+      const r = await fetch("/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const out = await r.json();
+      if (out.ok) { fb.className = "feedback ok"; fb.textContent = `On the board as ${out.team} (${out.role}).`; poll(); }
+      else { fb.className = "feedback err"; fb.textContent = out.error || "Submission rejected."; }
+    } catch (e) { fb.className = "feedback err"; fb.textContent = "Couldn't reach the referee."; }
+    finally { btn.disabled = false; }
+  }
+
+  document.getElementById("send").addEventListener("click", send);
+  poll();
+  setInterval(poll, 3000);
+</script>
+</body>
+</html>
