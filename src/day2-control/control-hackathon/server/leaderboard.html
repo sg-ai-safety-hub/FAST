@@ -237,9 +237,8 @@
     try {
       const r = await fetch("/state", { cache: "no-store" });
       snap = await r.json();
-      const mode = snap.mode === "model" ? "real-model arena" : "synthetic arena";
       document.getElementById("dot").className = "dot live";
-      document.getElementById("conn").textContent = `live · ${mode} · ${snap.blue.length} blue, ${snap.red.length} red`;
+      document.getElementById("conn").textContent = `live · ${snap.blue.length} blue, ${snap.red.length} red on the board`;
       render();
     } catch (e) {
       document.getElementById("dot").className = "dot off";

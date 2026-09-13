@@ -32,10 +32,10 @@ safety-usefulness curve, then compute it.
 The board is a small hosted referee (`server/`, a container you deploy to Cloud Run). It keeps
 every submission, continuously re-runs the whole blue-versus-red tournament, and shows the live
 standings, so a strong attack can knock the leading protocol off the top in real time. The game
-runs on a table of tasks and never calls a model, which keeps that round-robin cheap. The arena
-mode is fixed when the referee is deployed; to run the back half of the afternoon on a real model,
-deploy a fresh board in model mode and have teams re-submit — the synthetic and real-model rounds
-stay separate competitions, and nobody changes their code to move between them.
+runs on a table of synthetic signals and never calls a model, which keeps that round-robin cheap.
+The back half of the afternoon plays the same game against a real model — that's a separate
+exercise and a separate referee, [`live-control`](../live-control/), where the protocol and attack
+you tuned here come back paired with the prompts that drive the real models.
 
 ## Prerequisites
 

@@ -5,10 +5,11 @@ submits, re-runs the full blue-versus-red tournament whenever anything changes, 
 leaderboard page that shows the standings. The game logic lives in the installed `fast` package,
 so this file is thin: it is an HTTP wrapper plus the arena swap.
 
-Deploy it as a throwaway, isolated container (see README). It executes participants' submitted
-policy code to score it — in a restricted namespace, but treat the instance as disposable and keep
-no secrets in it beyond the OpenRouter key, which is used only to build the real-model task table,
-never in the path that runs participant code.
+This is the Exercise 1 (synthetic) referee: the game runs entirely on `SyntheticArena`, so it makes
+no model calls and holds no secrets. The real-model version is a separate service under
+`../../live-control/`. Deploy this as a throwaway, isolated container (see README): it executes
+participants' submitted policy code to score it — in a restricted namespace, but the container's
+isolation is the real boundary.
 """
 
 from __future__ import annotations
@@ -29,30 +30,12 @@ EPISODES = int(os.environ.get("ARENA_EPISODES", "60"))
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 HERE = Path(__file__).parent
 
-# --- arena selection ----------------------------------------------------------------------------
+# --- arena ---------------------------------------------------------------------------------------
 
 _state_lock = threading.Lock()
-arena_mode = os.environ.get("ARENA_MODE", "synthetic")  # fixed at deploy; switching means redeploy
-arena = None  # built once at startup, below
+arena = lab.SyntheticArena(seed=0)
 submissions: dict[str, dict] = {}  # key "role:team" -> {team, role, code, fn, error}
-standings: dict = {"mode": arena_mode, "blue": [], "red": [], "fight": None, "updated": 0}
-
-
-def build_arena(mode: str):
-    """Synthetic is the default; 'model' grounds the monitor's suspicion in a real model.
-
-    The arena is chosen at startup from `ARENA_MODE` and never changes under a running board — the
-    board lives in this instance's memory, so a mode change is a fresh deployment. Model mode rates
-    code snippets with a real monitor over OpenRouter (the signal blue acts on, and one nobody can
-    reverse-engineer); task correctness keeps the strong/weak priors. It runs once, here.
-    """
-    if mode == "synthetic":
-        return lab.SyntheticArena(seed=0)
-    if mode == "model":
-        from model_arena import build_model_arena
-
-        return build_model_arena(seed=0)
-    raise ValueError(f"unknown arena mode {mode!r}")
+standings: dict = {"blue": [], "red": [], "fight": None, "updated": 0}
 
 
 # --- running submitted policies safely ----------------------------------------------------------
@@ -153,7 +136,7 @@ def recompute() -> None:
             "usefulness": champ_b["usefulness"],
         }
     with _state_lock:
-        standings.update(mode=arena_mode, blue=blue_rows, red=red_rows, fight=fight, updated=time.time())
+        standings.update(blue=blue_rows, red=red_rows, fight=fight, updated=time.time())
 
 
 # --- HTTP ---------------------------------------------------------------------------------------
@@ -206,7 +189,7 @@ def submit(sub: Submission) -> JSONResponse:
 
 @app.post("/admin/reset")
 def reset(req: AdminRequest) -> JSONResponse:
-    """Clear the board for a fresh round. The arena mode is fixed at deploy time, so it's unchanged."""
+    """Clear the board for a fresh round. The synthetic arena itself is unchanged."""
     if ADMIN_TOKEN and req.token != ADMIN_TOKEN:
         return JSONResponse({"ok": False, "error": "bad admin token"}, status_code=403)
     submissions.clear()
@@ -214,5 +197,4 @@ def reset(req: AdminRequest) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-arena = build_arena(arena_mode)  # synthetic by default; ARENA_MODE=model needs OPENROUTER_API_KEY
 recompute()  # publish the house-only board at startup

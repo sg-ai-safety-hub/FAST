@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live control arena</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --ink: #1a1c22; --muted: #6b7280; --line: #e3e6eb;
+    --blue: #2457c5; --blue-soft: #eaf0fc; --red: #c23350; --red-soft: #fbeaee;
+    --font: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 64px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  h1 { font-size: 22px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .fight { margin: 22px 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .fight .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .fight .side { padding: 20px 22px; }
+  .fight .side.blue { background: var(--blue-soft); }
+  .fight .side.red { background: var(--red-soft); text-align: right; }
+  .fight .tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .fight .side.blue .tag { color: var(--blue); }
+  .fight .side.red .tag { color: var(--red); }
+  .fight .name { font-size: 19px; font-weight: 600; margin-top: 4px; word-break: break-word; }
+  .fight .metric { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .fight .vs { padding: 0 14px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .fight .empty { padding: 20px 22px; color: var(--muted); font-size: 14px; text-align: center; grid-column: 1 / -1; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 680px) { .cols { grid-template-columns: 1fr; } .fight .row { grid-template-columns: 1fr; } .fight .side.red { text-align: left; } .fight .vs { display: none; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .panel.blue h2 { color: var(--blue); }
+  .panel.red h2 { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 16px; font-size: 14px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.num { font-family: var(--mono); text-align: right; }
+  .rank { color: var(--muted); font-family: var(--mono); width: 1.5em; }
+  .team { font-weight: 500; word-break: break-word; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-family: var(--mono); }
+  .pill.pending { background: #fff4e0; color: #9a6700; }
+  .pill.error { background: var(--red-soft); color: var(--red); }
+  .empty td { color: var(--muted); font-style: italic; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Live control arena</h1>
+    <span class="sub" id="meta">connecting…</span>
+  </header>
+
+  <div class="fight" id="fight"></div>
+
+  <div class="cols">
+    <div class="panel blue">
+      <h2>Blue — protocols</h2>
+      <table>
+        <thead><tr><th class="rank">#</th><th>team</th><th class="num">usefulness</th><th class="num">worst-case safety</th></tr></thead>
+        <tbody id="blue"></tbody>
+      </table>
+    </div>
+    <div class="panel red">
+      <h2>Red — attacks</h2>
+      <table>
+        <thead><tr><th class="rank">#</th><th>team</th><th class="num">working</th><th class="num">safety forced</th></tr></thead>
+        <tbody id="red"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+  const fmt = (x) => (x === null || x === undefined) ? "—" : Number(x).toFixed(2);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function statusPill(row) {
+    if (row.status === "pending") return '<span class="pill pending">scoring…</span>';
+    if (row.status === "error") return '<span class="pill error">error</span>';
+    return null;
+  }
+
+  function renderFight(f) {
+    const el = document.getElementById("fight");
+    if (!f) {
+      el.innerHTML = '<div class="row"><div class="empty">No title fight yet — the board lights up once a protocol meets a working backdoor.</div></div>';
+      return;
+    }
+    el.innerHTML = `<div class="row">
+      <div class="side blue"><div class="tag">Top protocol</div><div class="name">${esc(f.blue)}</div>
+        <div class="metric">safety ${fmt(f.safety)} · usefulness ${fmt(f.usefulness)}</div></div>
+      <div class="vs">vs</div>
+      <div class="side red"><div class="tag">Top attack</div><div class="name">${esc(f.red)}</div>
+        <div class="metric">drives safety to ${fmt(f.safety)}</div></div>
+    </div>`;
+  }
+
+  function renderBlue(rows) {
+    const body = document.getElementById("blue");
+    if (!rows.length) { body.innerHTML = '<tr class="empty"><td colspan="4">no protocols submitted yet</td></tr>'; return; }
+    body.innerHTML = rows.map((r, i) => {
+      const pill = statusPill(r);
+      return `<tr><td class="rank">${r.status === "done" ? i + 1 : ""}</td>
+        <td class="team">${esc(r.team)} ${pill || ""}</td>
+        <td class="num">${pill ? "" : fmt(r.usefulness)}</td>
+        <td class="num">${pill ? "" : fmt(r.worst_safety)}</td></tr>`;
+    }).join("");
+  }
+
+  function renderRed(rows) {
+    const body = document.getElementById("red");
+    if (!rows.length) { body.innerHTML = '<tr class="empty"><td colspan="4">no attacks submitted yet</td></tr>'; return; }
+    body.innerHTML = rows.map((r, i) => {
+      const pill = statusPill(r);
+      const rank = (r.status === "done" && r.working) ? i + 1 : "";
+      return `<tr><td class="rank">${rank}</td>
+        <td class="team">${esc(r.team)} ${pill || ""}</td>
+        <td class="num">${pill ? "" : r.working}</td>
+        <td class="num">${pill ? "" : fmt(r.forced_safety)}</td></tr>`;
+    }).join("");
+  }
+
+  async function tick() {
+    try {
+      const s = await (await fetch("/state")).json();
+      renderFight(s.fight);
+      renderBlue(s.blue || []);
+      renderRed(s.red || []);
+      document.getElementById("meta").textContent = `${s.tasks} tasks · ${(s.blue || []).length} protocols · ${(s.red || []).length} attacks`;
+      document.getElementById("foot").textContent = s.updated ? `updated ${new Date(s.updated * 1000).toLocaleTimeString()}` : "";
+    } catch (e) {
+      document.getElementById("meta").textContent = "can't reach the referee";
+    }
+  }
+  tick();
+  setInterval(tick, 3000);
+</script>
+</body>
+</html>
