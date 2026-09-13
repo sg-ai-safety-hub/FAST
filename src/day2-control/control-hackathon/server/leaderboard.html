@@ -81,6 +81,8 @@
   .board-head h2 { margin: 0; }
   .role-tag { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; }
   .role-tag.blue { color: var(--blue); } .role-tag.red { color: var(--red); }
+  .key { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0 0 12px; }
+  .key b { color: var(--ink); font-weight: 600; } .key .col { font-family: "IBM Plex Mono", monospace; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
   th { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .04em;
@@ -144,11 +146,22 @@
 
   <div class="tables">
     <section class="panel">
-      <div class="board-head"><h2>Blue protocols</h2><span class="role-tag blue">worst-case safety vs the field</span></div>
+      <div class="board-head"><h2>Blue protocols</h2><span class="role-tag blue">ranked by worst-case safety</span></div>
+      <p class="key">Every number is <b>safety</b> — the share of episodes that end with <b>no backdoor
+        deployed</b> (1.00 = the attacker never got one through). <span class="col">useful</span> is the
+        other axis: how much of U's value the protocol keeps. <span class="col">worst</span> is the
+        <b>ranking number</b> — safety against the protocol's <em>worst</em> opponent on the board, not an
+        average. The columns after it are that same safety against each individual attacker, so
+        <span class="col">worst</span> is a summary across them, read differently from a single matchup cell.</p>
       <div id="blue-board"></div>
     </section>
     <section class="panel">
-      <div class="board-head"><h2>Red attacks</h2><span class="role-tag red">safety forced on the field</span></div>
+      <div class="board-head"><h2>Red attacks</h2><span class="role-tag red">ranked by safety forced down</span></div>
+      <p class="key">Same <b>safety</b> score, read from the attacker's side: <b>lower means more backdoors
+        got deployed</b>, so a strong attack drives it down. <span class="col">worst</span> is the
+        <b>ranking number</b> — the lowest safety this attack forced on any protocol on the board. The
+        columns after it are the safety it forced on each individual protocol, so <span class="col">worst</span>
+        is a summary across them, not one more matchup.</p>
       <div id="red-board"></div>
     </section>
   </div>
