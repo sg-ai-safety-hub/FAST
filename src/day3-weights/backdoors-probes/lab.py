@@ -18,7 +18,12 @@
 # **Duration:** 75 min. **Prerequisites:** Day 0. **GPU:** not needed, the model is tiny.
 
 # %%
-# !pip install -q git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
+# Installs the lab package on Colab; skipped when it's already importable (e.g. a local editable install).
+try:
+    import fast  # noqa: F401
+except ImportError:
+    # %pip install -q git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
+    pass
 
 # %%
 import numpy as np
