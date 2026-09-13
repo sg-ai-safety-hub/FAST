@@ -81,8 +81,11 @@
   .board-head h2 { margin: 0; }
   .role-tag { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; }
   .role-tag.blue { color: var(--blue); } .role-tag.red { color: var(--red); }
-  .key { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0 0 12px; }
-  .key b { color: var(--ink); font-weight: 600; } .key .col { font-family: "IBM Plex Mono", monospace; }
+  .key { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
+  .key b { color: var(--ink); font-weight: 600; }
+  .key .col { font-family: "IBM Plex Mono", monospace; color: var(--ink); font-weight: 600; }
+  th.sum, td.sum { color: var(--ink); font-weight: 700; }
+  .sum-edge { border-right: 2px solid var(--line); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
   th { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .04em;
@@ -147,21 +150,20 @@
   <div class="tables">
     <section class="panel">
       <div class="board-head"><h2>Blue protocols</h2><span class="role-tag blue">ranked by worst-case safety</span></div>
-      <p class="key">Every number is <b>safety</b> — the share of episodes that end with <b>no backdoor
-        deployed</b> (1.00 = the attacker never got one through). <span class="col">useful</span> is the
-        other axis: how much of U's value the protocol keeps. <span class="col">worst</span> is the
-        <b>ranking number</b> — safety against the protocol's <em>worst</em> opponent on the board, not an
-        average. The columns after it are that same safety against each individual attacker, so
-        <span class="col">worst</span> is a summary across them, read differently from a single matchup cell.</p>
+      <p class="key">Every number is a <b>safety</b> score from 0 to 1: how often the run ended with
+        no backdoor deployed, so 1.00 means none got through. The two bold columns read the whole row
+        at once. <span class="col">useful</span> is how much of the strong model's work the protocol
+        keeps. <span class="col">worst</span> is its safety against the single attacker it does worst
+        against, and that is what the ranking uses. Every column to the right of them is the safety
+        against one attacker on its own.</p>
       <div id="blue-board"></div>
     </section>
     <section class="panel">
       <div class="board-head"><h2>Red attacks</h2><span class="role-tag red">ranked by safety forced down</span></div>
-      <p class="key">Same <b>safety</b> score, read from the attacker's side: <b>lower means more backdoors
-        got deployed</b>, so a strong attack drives it down. <span class="col">worst</span> is the
-        <b>ranking number</b> — the lowest safety this attack forced on any protocol on the board. The
-        columns after it are the safety it forced on each individual protocol, so <span class="col">worst</span>
-        is a summary across them, not one more matchup.</p>
+      <p class="key">Same <b>safety</b> score, seen from the attacker's chair: a lower number means
+        more backdoors got through, so a strong attack pushes it down. The bold <span class="col">worst</span>
+        column is the lowest safety this attack forced on any protocol, and that is what the ranking
+        uses. Every column after it is the safety it forced on one protocol on its own.</p>
       <div id="red-board"></div>
     </section>
   </div>
@@ -209,11 +211,11 @@
   function renderBlue() {
     const rows = snap.blue;
     const reds = cols(rows);
-    const head = `<tr><th class="rank">#</th><th>team</th><th class="num">useful</th><th class="num">worst</th>` +
+    const head = `<tr><th class="rank">#</th><th>team</th><th class="num sum">useful</th><th class="num sum sum-edge">worst</th>` +
       reds.map((r) => `<th class="num">${esc(r.split("-")[0])}</th>`).join("") + `</tr>`;
     const body = rows.map((d, i) =>
       `<tr class="${d.house ? "house" : "blue"}"><td class="rank">${i + 1}</td><td class="team">${esc(d.team)}</td>` +
-      `<td class="num">${fmt(d.usefulness)}</td><td class="num lead">${fmt(d.worst_case)}</td>` +
+      `<td class="num sum">${fmt(d.usefulness)}</td><td class="num sum sum-edge lead">${fmt(d.worst_case)}</td>` +
       reds.map((r) => `<td class="num">${fmt(d.safety && d.safety[r])}</td>`).join("") + `</tr>`).join("");
     document.getElementById("blue-board").innerHTML = `<table>${head}${body}</table>`;
   }
@@ -226,11 +228,11 @@
       return;
     }
     const blues = cols(rows);
-    const head = `<tr><th class="rank">#</th><th>team</th><th class="num">worst</th>` +
+    const head = `<tr><th class="rank">#</th><th>team</th><th class="num sum sum-edge">worst</th>` +
       blues.map((b) => `<th class="num">${esc(b.split("-")[0])}</th>`).join("") + `</tr>`;
     const body = rows.map((d, i) =>
       `<tr class="${d.house ? "house" : "red"}"><td class="rank">${i + 1}</td><td class="team">${esc(d.team)}</td>` +
-      `<td class="num lead">${fmt(d.worst_for_blue)}</td>` +
+      `<td class="num sum sum-edge lead">${fmt(d.worst_for_blue)}</td>` +
       blues.map((b) => `<td class="num">${fmt(d.safety && d.safety[b])}</td>`).join("") + `</tr>`).join("");
     document.getElementById("red-board").innerHTML = `<table>${head}${body}</table>`;
   }
