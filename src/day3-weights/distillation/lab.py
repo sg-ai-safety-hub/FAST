@@ -17,18 +17,12 @@
 # to watch the loss fall and the student start to move toward the teacher.
 
 # %%
-import os
-
-token = os.environ.get("GITHUB_TOKEN")
-if not token:
-    try:
-        from google.colab import userdata
-
-        token = userdata.get("GITHUB_TOKEN")
-    except Exception:  # noqa: BLE001 — not on Colab, or the secret isn't set
-        token = None
-auth = f"{token}@" if token else ""
-# !pip install -q git+https://{auth}github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
+# Installs the lab package on Colab; skipped when it's already importable (e.g. a local editable install).
+try:
+    import fast  # noqa: F401
+except ImportError:
+    # %pip install -q git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
+    pass
 
 # %%
 import torch
