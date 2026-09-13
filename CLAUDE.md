@@ -297,10 +297,8 @@ declaring it risks pip swapping in a CPU wheel mid-install and breaking a lab.
 The install cell in every notebook is identical, pip-installing
 `git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast` — so
 changing the source is one
-find/replace, not an archaeology exercise. The repo is **private for now**, so the cell reads a
-`GITHUB_TOKEN` — from the environment (running locally), else Colab Secrets — and authenticates
-the clone with it when present. Export the token in a shell or set the Colab secret once, and
-the same notebook runs in either place; drop it when the repo goes public. Pin `@main` to a release tag before the program runs.
+find/replace, not an archaeology exercise. The repo is **public**, so the clone needs no
+authentication. Pin `@main` to a release tag before the program runs.
 
 ## Status
 
