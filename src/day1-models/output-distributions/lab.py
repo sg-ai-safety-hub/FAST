@@ -18,18 +18,7 @@
 # in a couple of minutes. Nothing here trains, so every cell after the download takes seconds.
 
 # %%
-import os
-
-token = os.environ.get("GITHUB_TOKEN")
-if not token:
-    try:
-        from google.colab import userdata
-
-        token = userdata.get("GITHUB_TOKEN")
-    except Exception:  # noqa: BLE001 — not on Colab, or the secret isn't set
-        token = None
-auth = f"{token}@" if token else ""
-# !pip install -q git+https://{auth}github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
+# !pip install -q git+https://github.com/sg-ai-safety-hub/FAST.git@main#subdirectory=src/packages/fast
 
 # %%
 import torch
