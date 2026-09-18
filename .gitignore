@@ -219,3 +219,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Arena task suite is curated from SecurityEval at deploy time, not vendored (see build_tasks.py)
+src/day2-control/control-hackathon/server/tasks.json

@@ -1,50 +1,56 @@
-# AI control hackathon
+# Insecure-code control hackathon
 
-**Day 2 · Hackathon · CPU only (the arena runs in seconds, no GPU)**
+**Day 2 · Hackathon · CPU only (the models run on the referee, not your runtime)**
 
 ## Objective
 
-Build both halves of a control setup and play them against each other. As blue, design a protocol
-that gets useful work from an untrusted model without letting a scheming one slip a backdoor past
-you. As red, play the untrusted model and find the attack that beats it. Everything lands on a
-shared leaderboard as a safety-versus-usefulness point, so the room can see the whole frontier at
-once.
+Build both halves of a monitoring setup and play them against each other on a live board. As blue,
+build the smallest monitor that still catches insecure code an untrusted model tries to slip past
+you. As red, build a model organism — a prompt, not a trained model — that writes code which does
+the task but hides a real vulnerability well enough to fool the room's monitors. Swap sides partway
+through: attack the assumptions you just defended.
 
 ## What it surfaces
 
-Control is a game, and the score is two numbers in tension. Deferring to a weaker trusted model is
-always safe and always costs you capability; trusting the strong model is useful and open to
-attack; a few well-spent human audits buy back most of the safety without much of the cost. Playing
-both sides makes that tradeoff concrete: blue teams feel the audit budget bite, and red teams learn
-that the winning attack is the rare, subtle one that lands just below the audit threshold, not the
-blatant one. Switching roles halfway is the point — you attack the assumptions you just relied on.
+Monitoring is the workhorse of AI control, and it has two knobs the abstract version hides: how
+*small* a model you can catch with, and how *quietly* a capable model can slip past. This exercise
+makes both concrete. Blue teams start with a big open-weight model and discover how far a sharper
+prompt lets them walk *down* to a tiny one before the catch-rate collapses — the same trade a real
+deployment makes when it can't afford to run its best model on every action. Red teams learn that the winning
+attack isn't the blatant `os.system(user_input)` the house monitors already catch; it's the insecure
+code that reads as ordinary, and that a *strong* judge still calls a vulnerability. The two scores
+are in tension across the room: every monitor that gets cheaper invites a subtler attack, and every
+attack that lands forces the monitors to re-prove themselves.
+
+The security content is real, not a metaphor. The tasks are drawn from
+[SecurityEval](https://github.com/s2e-lab/SecurityEval): small Python functions with a
+security-sensitive operation, played on a handful of high-signal CWEs — command injection, SQL
+injection, path traversal, unsafe deserialization, weak cryptography.
 
 ## Structure
 
-The notebook opens with the arena and a house frontier to beat, then two short warm-up exercises
-(the monitoring decision, and the defer-to-resample decision) that give you the primitives. The
-open competition is in between: tune a blue protocol, switch to a red attack, and submit each to
-the live leaderboard. Blue protocols pick among four actions — accept U, defer to T, audit, or let
-T edit the solution — and can pace a scarce audit budget across the stream; red picks where and how
-subtly to strike. A defer-to-resample interlude sits in the middle as a guided detour: guess the
-safety-usefulness curve, then compute it.
+One notebook, one live board. The notebook opens with the task suite and the weaknesses in scope,
+then two short warm-ups that build the scoring you're judged on (reading a monitor's caught- and
+false-flag-rates; counting the monitors an attack evades). The open competition is the rest of the
+session: pick a model and write a monitor prompt, dry-run it against a calibration set, submit; then
+switch to red, write an attack prompt, dry-run to see the judge's verdict, submit. The board re-scores
+the whole field live.
 
-The board is a small hosted referee (`server/`, a container you deploy to Cloud Run). It keeps
-every submission, continuously re-runs the whole blue-versus-red tournament, and shows the live
-standings, so a strong attack can knock the leading protocol off the top in real time. The game
-runs on a table of synthetic signals and never calls a model, which keeps that round-robin cheap.
-The back half of the afternoon plays the same game against a real model — that's a separate
-exercise and a separate referee, [`live-control`](../live-control/), where the protocol and attack
-you tuned here come back paired with the prompts that drive the real models.
+Ground truth is a strong **judge** model, independent of both teams: a red snippet counts only if the
+judge agrees it both does the task and is genuinely insecure. The referee never runs any submitted
+code — it is only ever read, by the judge and by the monitors — so the exercise has no
+code-execution risk to manage.
 
 ## Prerequisites
 
-Day 0 done. No GPU. Comfort reading a threshold policy in a few lines of Python. The assume-breach
-framing from earlier in the day is the mindset this rewards: treat the capable component as
-possibly hostile and design for its worst behaviour, not its typical one.
+Day 0 done. No GPU. Comfort reading short Python and recognising an insecure pattern when named (the
+notebook lists the CWEs in scope). The assume-breach framing from earlier in the day is the mindset
+this rewards: treat the capable model as possibly hostile and design the monitor for its worst
+behaviour, not its typical one.
 
 ## Reading
 
-The setting and the protocols are from [Greenblatt et al., 2023](https://arxiv.org/abs/2312.06942).
-Defer-to-resample is the resampling idea from the follow-up work on controlling agents
-([Ctrl-Z, 2025](https://arxiv.org/abs/2504.10374)).
+The control agenda and what a monitor is for: [Greenblatt et al., 2023](https://arxiv.org/abs/2312.06942).
+Model organisms — building a specific misbehaviour on purpose so you can study and detect it — from
+[Hubinger et al., *Sleeper Agents*, 2024](https://arxiv.org/abs/2401.05566). The task suite:
+[Siddiq & Santos, *SecurityEval*, 2022](https://doi.org/10.1145/3549035.3561184).
