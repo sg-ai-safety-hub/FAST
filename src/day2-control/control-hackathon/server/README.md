@@ -41,8 +41,9 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 - `POST /submit_blue {team, monitor_prompt, model}` · `POST /submit_red {team, attack_prompt}`
 - `POST /dry_run_blue {monitor_prompt, model}` · `POST /dry_run_red {attack_prompt}` — no board effect
-- `GET /models` — the ladder · `GET /state` — the board JSON · `GET /sample` — one worked example
-  (task + MO/judge/monitor decisions) the notebook shows to explain the pipeline
+- `GET /models` — the ladder · `GET /state` — the board JSON
+- `GET /sample` — one worked example (task + MO/judge/monitor decisions) the notebook shows
+- `GET /detail?role=blue|red&team=NAME` — per-team drill-down the board rows link to
 
 ## Run locally
 

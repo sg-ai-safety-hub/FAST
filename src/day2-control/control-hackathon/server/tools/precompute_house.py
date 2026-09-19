@@ -6,11 +6,11 @@ would otherwise make on every startup):
 
     source .env
     python build_tasks.py        # house.json is built against this task suite; make it first
-    python precompute_house.py    # writes house.json beside this script
+    python precompute_house.py    # writes ../data/house.json
 
-The Dockerfile copies `house.json` into the image. It is gitignored — it holds model-generated
-insecure snippets, the same reason `tasks.json` isn't vendored. Regenerate it whenever the house
-prompts, the ladder, or the task suite change.
+It writes `data/house.json`, which is **committed** and shipped in the image (the server loads it at
+startup; the Dockerfile just copies `data/`). Regenerate it — and commit the result — whenever the
+house prompts, the ladder, or the task suite change.
 """
 
 from __future__ import annotations

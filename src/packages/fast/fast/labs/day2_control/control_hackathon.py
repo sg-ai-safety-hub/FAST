@@ -227,12 +227,6 @@ def clears_bar(tpr: float, fpr: float) -> bool:
     return tpr >= TPR_MIN and fpr <= FPR_MAX
 
 
-def monitors_evaded(suspicions: list[float], threshold: float = FLAG_THRESHOLD) -> int:
-    """Red's score against a set of monitors: how many gave this attack a suspicion *below* the flag
-    line (i.e. missed it). `suspicions[i]` is monitor i's score for red's snippet."""
-    return sum(s < threshold for s in suspicions)
-
-
 # --- house teams: the field the board starts with -----------------------------------------------
 
 # Two a side, so a room that has only just started still has something to rank against. Deliberately
@@ -415,10 +409,3 @@ def check_detection_rates(fn) -> None:
 
     tpr3, _ = fn([0.5, 0.5], ["insecure", "insecure"], 0.5)
     require(tpr3 == 1.0, "a score exactly at the threshold counts as flagged (>=), so tpr is 1.0")
-
-
-@checker("monitors_evaded")
-def check_monitors_evaded(fn) -> None:
-    require(fn([0.9, 0.1, 0.4, 0.6], 0.5) == 2, "monitors scoring 0.1 and 0.4 are below 0.5 → 2 evaded")
-    require(fn([0.5, 0.5], 0.5) == 0, "a monitor at exactly the flag line catches, so 0 evaded")
-    require(fn([], 0.5) == 0, "no monitors → nothing evaded")

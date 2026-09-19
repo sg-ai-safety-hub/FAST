@@ -1,4 +1,4 @@
-"""Curate the arena's task suite from SecurityEval — run at deploy, not committed.
+"""Curate the arena's task suite from SecurityEval into `data/tasks.json`.
 
 The tasks are Python function stubs drawn from **SecurityEval** (Siddiq & Santos, MSR4P&S 2022,
 https://github.com/s2e-lab/SecurityEval): each is a short signature + docstring describing a
@@ -6,13 +6,12 @@ security-sensitive operation (run a shell command, open a user-supplied path, bu
 deserialize bytes, hash a secret). A model can complete any of them securely or insecurely — which
 is exactly the choice red's model organism gets to make and blue's monitor has to catch.
 
-SecurityEval ships no licence file, so we **do not vendor its prompts** into this public repo
-(see CLAUDE.md: datasets are referenced by source, not committed). Instead this script fetches the
-dataset and writes a curated `tasks.json` next to it at deploy time; that file is gitignored. The
-Dockerfile runs this during image build, so the deployed server has the tasks without the repo
-carrying them.
+This script fetches the dataset and writes a curated `data/tasks.json`, which is **committed** and
+shipped in the image — the server loads it, never rebuilds it at runtime. Rerun it (and commit the
+result) only when the target CWEs change. SecurityEval has no licence file, so this vendors only the
+small curated subset the exercise needs.
 
-    python build_tasks.py            # writes tasks.json
+    python build_tasks.py            # writes ../data/tasks.json
     python build_tasks.py --check    # just report what would be selected
 
 We keep only a handful of high-signal CWEs and a few tasks each: a tight, judge-legible target beats

@@ -107,9 +107,30 @@ def sample() -> JSONResponse:
     return JSONResponse(engine.sample_case())
 
 
+@app.get("/detail")
+def detail(role: str, team: str) -> JSONResponse:
+    """Drill-down for one team the board rows link to: the shared reference task in full plus a
+    per-task breakdown. Read-only, built from loaded state — no model calls."""
+    if role not in ("blue", "red"):
+        return JSONResponse({"available": False, "error": "role must be blue or red"}, status_code=400)
+    return JSONResponse(engine.team_detail(role, team))
+
+
+MAX_PROMPT = 4000  # a monitor/attack prompt is a paragraph, not a payload — cap it (each submission
+#                    fans model calls out over every task, so an unbounded prompt is a cost lever)
+
+
 def _team_ok(team: str) -> str | None:
     team = team.strip()[:60]
     return team if team and team != "your team name" else None
+
+
+def _prompt_error(prompt: str, kind: str) -> str | None:
+    if not prompt.strip():
+        return f"empty {kind} prompt"
+    if len(prompt) > MAX_PROMPT:
+        return f"{kind} prompt too long ({len(prompt)} chars; max {MAX_PROMPT})"
+    return None
 
 
 @app.post("/submit_blue")
@@ -117,8 +138,8 @@ def submit_blue(sub: BlueSubmission) -> JSONResponse:
     team = _team_ok(sub.team)
     if not team:
         return JSONResponse({"ok": False, "error": "set a real team name"}, status_code=400)
-    if not sub.monitor_prompt.strip():
-        return JSONResponse({"ok": False, "error": "empty monitor prompt"}, status_code=400)
+    if err := _prompt_error(sub.monitor_prompt, "monitor"):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     if not is_allowed_model(sub.model):
         return JSONResponse({"ok": False, "error": f"model {sub.model!r} is not on the ladder — "
                              "GET /models for the choices"}, status_code=400)
@@ -134,8 +155,8 @@ def submit_red(sub: RedSubmission) -> JSONResponse:
     team = _team_ok(sub.team)
     if not team:
         return JSONResponse({"ok": False, "error": "set a real team name"}, status_code=400)
-    if not sub.attack_prompt.strip():
-        return JSONResponse({"ok": False, "error": "empty attack prompt"}, status_code=400)
+    if err := _prompt_error(sub.attack_prompt, "attack"):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     with engine._lock:
         engine.red_subs[team] = {"team": team, "status": "pending", "error": None, "snippets": {},
                                  "working": 0, "attack_prompt": sub.attack_prompt}
@@ -148,6 +169,8 @@ def dry_run_blue(sub: MonitorDryRun) -> JSONResponse:
     if not is_allowed_model(sub.model):
         return JSONResponse({"ok": False, "error": f"model {sub.model!r} is not on the ladder"},
                             status_code=400)
+    if err := _prompt_error(sub.monitor_prompt, "monitor"):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     try:
         out = engine.dry_run_blue(sub.monitor_prompt, sub.model)
     except Exception as exc:  # noqa: BLE001
@@ -157,6 +180,8 @@ def dry_run_blue(sub: MonitorDryRun) -> JSONResponse:
 
 @app.post("/dry_run_red")
 def dry_run_red(sub: AttackDryRun) -> JSONResponse:
+    if err := _prompt_error(sub.attack_prompt, "attack"):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     try:
         results = engine.dry_run_red(sub.attack_prompt)
     except Exception as exc:  # noqa: BLE001
@@ -166,8 +191,11 @@ def dry_run_red(sub: AttackDryRun) -> JSONResponse:
 
 @app.post("/admin/reset")
 def reset(req: AdminRequest) -> JSONResponse:
-    if ADMIN_TOKEN and req.token != ADMIN_TOKEN:
-        return JSONResponse({"ok": False, "error": "bad admin token"}, status_code=403)
+    # Refuse when no token is configured (don't fall open to every room-key holder), else compare
+    # in constant time.
+    if not ADMIN_TOKEN or not hmac.compare_digest(req.token, ADMIN_TOKEN):
+        return JSONResponse({"ok": False, "error": "admin token not configured or incorrect"},
+                            status_code=403)
     with engine._lock:
         engine.red_subs.clear()
         engine.blue_subs.clear()
