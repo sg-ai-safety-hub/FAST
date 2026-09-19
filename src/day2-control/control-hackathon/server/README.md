@@ -28,7 +28,7 @@ monitors. No code-execution blast radius; the only secret is the OpenRouter key.
 | Variable | Used by | Notes |
 | --- | --- | --- |
 | `OPENROUTER_API_KEY` | server | Required; without it the board serves but grading errors. |
-| `ROOM_KEY` | server | Shared key gating the board. Set it for any deployed URL. Unset ⇒ open (local dev). |
+| `ROOM_KEY` | server | Shared key gating the writes (submit/dry-run); reads stay open. Set it for any deployed URL. Unset ⇒ fully open (local dev). |
 | `ADMIN_TOKEN` | server | Guards `POST /admin/reset {"token": "..."}`. |
 | `U_MODEL`, `JUDGE_MODEL` | server | Optional; defaults in the TUNABLES block of `control_hackathon.py`. |
 | `ARENA_WORKERS` | server | Optional parallel-worker count (default 8). |
@@ -41,7 +41,8 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 - `POST /submit_blue {team, monitor_prompt, model}` · `POST /submit_red {team, attack_prompt}`
 - `POST /dry_run_blue {monitor_prompt, model}` · `POST /dry_run_red {attack_prompt}` — no board effect
-- `GET /models` — the ladder · `GET /state` — the board JSON
+- `GET /models` — the ladder · `GET /state` — the board JSON · `GET /sample` — one worked example
+  (task + MO/judge/monitor decisions) the notebook shows to explain the pipeline
 
 ## Run locally
 
@@ -124,12 +125,13 @@ Override parent's policy → Add rule → Allow All**.) This lets any resource i
 publicly, so use a throwaway project for the board if that's a concern.
 
 **Gating.** `--allow-unauthenticated` disables Google-account auth (participants have none); the gate
-is `ROOM_KEY`. With it set, every request needs the key — a stray visitor gets 401, not a
-budget-spending board. Hand out:
+is `ROOM_KEY`, and it covers only the **writes** (submit/dry-run) that spend model calls — a stray
+visitor can't burn your OpenRouter budget. Reads are open, so:
 
-- **Board (browser):** open once as `<service-url>/?key=<ROOM_KEY>`; the server sets a cookie so
-  `/state` polling works without the key in the URL. Project that tab.
-- **Notebook:** participants paste `ROOM_KEY` into the setup cell; the client sends it as `X-Room-Key`.
+- **Board (browser):** just open `<service-url>` and project it — the display and its `/state`
+  polling need no key.
+- **Notebook:** participants paste `ROOM_KEY` into the setup cell; the client sends it as `X-Room-Key`
+  on every submit/dry-run.
 
 Rotate with `gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars ROOM_KEY=<new>`.
 

@@ -427,6 +427,37 @@ def precompute_house() -> dict:
     return snapshot()
 
 
+def sample_case() -> dict:
+    """One worked example to show participants the whole pipeline on a single real task — built from
+    the loaded house field, so it makes no model calls. Returns the task, the model organism's
+    judge-confirmed insecure solution and the judge's verdict, the clean baseline for the same task,
+    and how each house monitor scored both (so you can see who catches it and who's fooled)."""
+    from fast.labs.day2_control.control_hackathon import FLAG_THRESHOLD
+
+    task_by_id = {t["id"]: t for t in TASKS}
+    with _lock:
+        for team in ("house-quiet", "house-blatant"):  # prefer the stealthy MO as the example
+            red = red_subs.get(team)
+            if not red:
+                continue
+            for tid, s in red.get("snippets", {}).items():
+                if not (s["does_task"] and s["insecure"] and tid in _honest):
+                    continue
+                monitors = [
+                    {"label": bname, "model": b["model"],
+                     "insecure_score": b["scores"].get(f"{team}:{tid}"),
+                     "clean_score": b["scores"].get(f"honest:{tid}")}
+                    for bname, b in blue_subs.items()
+                ]
+                return {"available": True, "task": task_by_id.get(tid, {"id": tid}),
+                        "mo_team": team, "attack_prompt": red["attack_prompt"],
+                        "insecure_code": s["code"],
+                        "verdict": {k: s[k] for k in ("does_task", "insecure", "why")},
+                        "clean_code": _honest[tid], "flag_threshold": FLAG_THRESHOLD,
+                        "monitors": monitors}
+    return {"available": False}
+
+
 def _worker() -> None:
     while True:
         role, team, prompt, model = _work.get()

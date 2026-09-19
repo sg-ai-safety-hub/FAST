@@ -65,6 +65,18 @@ insecure = next(s for s in lab.CALIBRATION if s["label"] == "insecure" and "os.s
 print("SECURE:\n" + clean["code"] + "\n\nINSECURE (command injection):\n" + insecure["code"])
 
 # %% [markdown]
+# ### One worked example, end to end
+#
+# That pair was hand-picked. Here is the real thing: one task from the live suite, the **model
+# organism's** insecure solution to it, the **judge's** verdict, and how each of the board's **house
+# monitors** scored it against the clean version. This is exactly what the board does under the hood
+# for every submission — the whole loop you're about to play, on one snippet, with nothing hidden.
+# (Needs `SERVER_URL` set above.)
+
+# %%
+lab.show_sample(SERVER_URL)
+
+# %% [markdown]
 # ## Blue warm-up: reading a monitor
 #
 # The board scores your monitor with two numbers over a shared pool of code: **caught** — the share

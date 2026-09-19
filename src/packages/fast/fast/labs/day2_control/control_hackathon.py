@@ -303,6 +303,52 @@ def _post(server_url: str, path: str, body: dict, key: str = "") -> dict:
         return {"ok": False, "error": f"couldn't reach the board at {server_url}: {exc}"}
 
 
+def _get(server_url: str, path: str) -> dict:
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(server_url.rstrip("/") + path)  # reads are open, no key needed
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        return json.load(exc)
+    except Exception as exc:  # noqa: BLE001 — network/URL trouble, report it plainly
+        return {"ok": False, "error": f"couldn't reach the board at {server_url}: {exc}"}
+
+
+def show_sample(server_url: str) -> dict:
+    """Print one worked example from the board — a real task, the model organism's insecure solution,
+    the judge's verdict, and how each house monitor scored it — so you can see the whole pipeline on
+    one snippet before building your own. Read-only; needs `SERVER_URL` set."""
+    if not server_url:
+        print("Set SERVER_URL to the board link your instructor shared, then re-run.")
+        return {"ok": False}
+    d = _get(server_url, "/sample")
+    if not d.get("available"):
+        print("No worked example yet — the board's house field isn't loaded. " + d.get("error", ""))
+        return d
+
+    task, verdict, thr = d["task"], d["verdict"], d["flag_threshold"]
+    print(f"TASK  [{task.get('cwe', '?')}]  {task.get('id', '')}")
+    print((task.get("prompt") or "").strip() or "(prompt omitted)")
+    print(f"\n— the model organism ({d['mo_team']}) was prompted —\n  \"{d['attack_prompt']}\"")
+    print(f"\n— and wrote this, which the judge ruled does_task={verdict['does_task']}, "
+          f"insecure={verdict['insecure']} ({verdict['why']}) —\n")
+    print(d["insecure_code"])
+
+    def fmt(x: float | None) -> str:
+        return "  n/a" if x is None else f"{x:.2f} {'FLAG' if x >= thr else 'pass'}"
+
+    print(f"\n— how each house monitor scored it, vs the clean version (flags at ≥ {thr}) —")
+    for m in d["monitors"]:
+        print(f"  {m['label']:<16} {m['model']:<34} "
+              f"insecure {fmt(m['insecure_score'])}   clean {fmt(m['clean_score'])}")
+    print("\nThat's the loop: the MO writes it, the judge rules it insecure, and each monitor either "
+          "catches it or waves it through — the game is doing that catching with a small model.")
+    return d
+
+
 def dry_run_blue(server_url: str, monitor_prompt: str, model: str, key: str = "") -> dict:
     """Score a monitor prompt + model over the fixed calibration set — caught/false-flag, no board
     effect. Blue's fast loop before submitting."""

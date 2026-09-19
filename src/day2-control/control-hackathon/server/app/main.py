@@ -31,45 +31,32 @@ from fast.labs.day2_control.control_hackathon import MODEL_LADDER, is_allowed_mo
 
 HERE = Path(__file__).parent
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
-# A shared room key gates the whole board so a public URL isn't open to the internet (which would let
-# anyone spam submissions and burn the OpenRouter budget). Unset ⇒ open, for local dev. Hand the key
-# to the room; the notebook sends it as a header, and the board is opened once as `URL/?key=<key>`.
+# A shared room key gates the *writes* — submit and dry-run, the endpoints that spend model calls —
+# so a public URL can't be used to burn the OpenRouter budget. Reads (the board, /state, /models) are
+# open: they only display. Unset ⇒ fully open, for local dev. The notebook sends the key as a header.
 ROOM_KEY = os.environ.get("ROOM_KEY", "")
 
 app = FastAPI(title="Insecure-code control hackathon referee")
 
-_KEY_PROMPT = (
-    "<!doctype html><meta charset=utf-8><title>Room key required</title>"
-    "<body style='font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem'>"
-    "<h1>Room key required</h1><p>This board is gated. Open it as "
-    "<code>&lt;this-url&gt;/?key=YOUR_KEY</code> with the key your instructor shared.</p>"
-)
-
 
 def _presented_key(request: Request) -> str:
-    """The key a caller offers: header for the notebook, `?key=` / cookie for the browser board."""
+    """The key a caller offers on a write. The notebook sends it as an `X-Room-Key` header."""
     header = request.headers.get("x-room-key")
     if header:
         return header
     auth = request.headers.get("authorization", "")
     if auth[:7].lower() == "bearer ":
         return auth[7:].strip()
-    return request.query_params.get("key") or request.cookies.get("room_key") or ""
+    return ""
 
 
 @app.middleware("http")
 async def require_room_key(request: Request, call_next):
-    if not ROOM_KEY:  # no key configured — open (local dev)
-        return await call_next(request)
-    if not hmac.compare_digest(_presented_key(request), ROOM_KEY):
-        if request.method == "GET" and request.url.path == "/":
-            return HTMLResponse(_KEY_PROMPT, status_code=401)  # a browser: show how to pass the key
+    # Only gate methods that mutate/cost (POST). GET/HEAD/OPTIONS — the board and its polling — stay open.
+    if (ROOM_KEY and request.method not in ("GET", "HEAD", "OPTIONS")
+            and not hmac.compare_digest(_presented_key(request), ROOM_KEY)):
         return JSONResponse({"ok": False, "error": "room key required"}, status_code=401)
-    response = await call_next(request)
-    # Board opened with a valid `?key=` — remember it in a cookie so the page's /state polls carry it.
-    if request.url.path == "/" and request.query_params.get("key"):
-        response.set_cookie("room_key", ROOM_KEY, max_age=86400, httponly=True, samesite="lax")
-    return response
+    return await call_next(request)
 
 
 class BlueSubmission(BaseModel):
@@ -111,6 +98,13 @@ def state() -> JSONResponse:
 def models() -> JSONResponse:
     """The ladder blue picks from, dearest first — the board and the notebook both read this."""
     return JSONResponse({"ladder": MODEL_LADDER})
+
+
+@app.get("/sample")
+def sample() -> JSONResponse:
+    """One worked example (a real task + the MO/judge/monitor decisions on it) so the notebook can
+    show participants the pipeline. Read-only, built from the house field — no model calls."""
+    return JSONResponse(engine.sample_case())
 
 
 def _team_ok(team: str) -> str | None:
