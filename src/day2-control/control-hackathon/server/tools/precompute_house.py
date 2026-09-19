@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # server root, so `app` imports
 
 # Load OPENROUTER_API_KEY from a .env above us if it isn't already in the environment.
 if not os.environ.get("OPENROUTER_API_KEY"):
@@ -29,7 +32,7 @@ if not os.environ.get("OPENROUTER_API_KEY"):
                     os.environ["OPENROUTER_API_KEY"] = line.split("=", 1)[1].strip()
             break
 
-import engine  # imported after the key is put in the environment above
+from app import engine  # imported after the key is put in the environment above
 
 
 def main() -> None:

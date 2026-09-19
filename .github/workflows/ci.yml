@@ -40,4 +40,4 @@ jobs:
       # won't touch it. This runs it with the model layer stubbed (no API key, no network) so a
       # scoring regression fails here, not in the room.
       - name: Control-hackathon referee engine
-        run: .venv/bin/python src/day2-control/control-hackathon/server/test_engine.py
+        run: .venv/bin/python src/day2-control/control-hackathon/server/tools/test_engine.py

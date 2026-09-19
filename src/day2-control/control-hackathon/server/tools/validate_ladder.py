@@ -17,6 +17,8 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # server root, so `app` imports
+
 # Load OPENROUTER_API_KEY from a .env somewhere above us if it isn't already set.
 if not os.environ.get("OPENROUTER_API_KEY"):
     for parent in [Path.cwd(), *Path.cwd().parents]:
@@ -27,7 +29,7 @@ if not os.environ.get("OPENROUTER_API_KEY"):
                     os.environ["OPENROUTER_API_KEY"] = line.split("=", 1)[1].strip()
             break
 
-import engine
+from app import engine
 
 from fast.labs.day2_control.control_hackathon import (
     HOUSE_RED,

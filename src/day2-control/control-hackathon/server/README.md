@@ -4,17 +4,19 @@ Backend for the Day 2 hackathon: stores submissions, keeps a shared code pool, r
 on every change, and serves the live board at `/`. Game logic is the installed `fast` package
 (`fast.labs.day2_control.control_hackathon`); this directory is the HTTP wrapper, model calls, and board.
 
-- `app.py` — endpoints, submission validation, the room-key gate.
-- `engine.py` — model calls (MO, judge, monitor), the pool, scoring, the house snapshot.
-- `leaderboard.html` — the page at `/`; polls `/state`.
-- `build_tasks.py` → `tasks.json` — curated SecurityEval task suite.
-- `precompute_house.py` → `house.json` — the house field, scored once so the server starts warm.
-- `validate_ladder.py` — pre-room dress rehearsal against real models.
-- `Dockerfile`, `requirements.txt`, `.gcloudignore` — the container and what the deploy uploads.
+Laid out in three dirs plus the container config at the root:
 
-`tasks.json` and `house.json` are generated locally before each deploy and shipped in the image (both
-gitignored: SecurityEval has no license; `house.json` holds model-generated insecure snippets). The
-server loads them, never rebuilds them at runtime.
+- `app/` — the running server: `main.py` (endpoints + room-key gate), `engine.py` (model calls, pool,
+  scoring, house snapshot), `leaderboard.html` (the page at `/`).
+- `data/` — committed JSON resources: `tasks.json` (curated SecurityEval suite) and `house.json` (the
+  precomputed house field). The server loads these; it never rebuilds them at runtime.
+- `tools/` — dev/ops scripts, not shipped in the image: `build_tasks.py` (→ `data/tasks.json`),
+  `precompute_house.py` (→ `data/house.json`), `validate_ladder.py` (pre-room rehearsal), `test_engine.py`.
+- `Dockerfile`, `requirements.txt`, `.gcloudignore`, `.env.example` — the container and its config.
+
+Regenerate the `data/` files only when the tasks, ladder, or house prompts change: `python
+tools/build_tasks.py` (needs network) then `python tools/precompute_house.py` (needs the key), and
+commit the result.
 
 **The referee never executes submitted code** — snippets are only *read*, by the judge and the
 monitors. No code-execution blast radius; the only secret is the OpenRouter key.
@@ -47,19 +49,17 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 source .env
 uv pip install -r requirements.txt
 uv pip install -e "../../../packages/fast"
-python build_tasks.py                        # -> tasks.json (needs network)
-uv run uvicorn app:app --reload --port 8080
+uv run uvicorn app.main:app --reload --port 8080   # tasks.json + house.json already in data/
 ```
 
-Without `house.json` the server live-scores the house on startup (fine locally; run
-`precompute_house.py` first to match production). Stub the model layer — no key, no network — with
-`python test_engine.py`.
+`data/house.json` is committed, so the board starts warm; if it's absent the server live-scores the
+house on startup instead. Stub the model layer — no key, no network — with `python tools/test_engine.py`.
 
 ## Before the room
 
 ```sh
 source .env
-python validate_ladder.py       # whole suite; pass a number for fewer tasks
+python tools/validate_ladder.py       # whole suite; pass a number for fewer tasks
 ```
 
 Healthy = big models clear the bar, tiny ones (Llama-3.2 3B/1B) fail; that gap is the game. Every rung
@@ -88,14 +88,11 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
 
 That's the *build* identity, separate from `$SERVICE_ACCOUNT` (the *runtime* identity). Wait ~30s.
 
-**Build the artifacts, then deploy.** Regenerate both whenever the tasks, ladder, or house prompts
-change; `.gcloudignore` uploads them (and keeps a local `.env` out):
+**Deploy.** `tasks.json` and `house.json` are committed, so deploy is one command (`.gcloudignore`
+keeps a local `.env` out of the upload):
 
 ```sh
 source .env
-python build_tasks.py        # -> tasks.json (needs network)
-python precompute_house.py    # -> house.json (needs the key; makes real paid calls — also a pipeline check)
-
 gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT" --region "$REGION" \
   --service-account "$SERVICE_ACCOUNT" --allow-unauthenticated --max-instances 1 \

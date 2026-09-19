@@ -11,8 +11,12 @@ Each test replaces the four model-calling functions with pure fakes, then exerci
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 
-import engine
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # server root, so `app` imports
+
+from app import engine
 
 # A fixed, tiny task suite so these tests are hermetic — no tasks.json on disk, no network. The model
 # layer is stubbed in every test and only ever reads task["id"], so three ids is enough. This also

@@ -1,9 +1,5 @@
-# What `gcloud run deploy --source .` uploads to Cloud Build.
-#
-# When this file exists, gcloud uses it INSTEAD of .gitignore to pick what to upload. That matters
-# here: tasks.json and house.json are gitignored but MUST ship in the build context — the Dockerfile
-# COPYs them — so they are deliberately NOT excluded below. Without this file, gcloud would fall back
-# to .gitignore, drop both, and the build would fail on the COPY.
+# What `gcloud run deploy --source .` uploads to Cloud Build. Its main job is secret hygiene: keep a
+# local .env out of the upload (tasks.json and house.json are committed and ship normally).
 
 .git
 .gitignore
@@ -16,6 +12,5 @@ __pycache__/
 *.pyc
 .venv/
 
-# Dev/ops scripts that aren't part of the running server.
-test_engine.py
-validate_ladder.py
+# Dev/ops scripts (build_tasks, precompute_house, validate_ladder, tests) aren't part of the runtime.
+tools/

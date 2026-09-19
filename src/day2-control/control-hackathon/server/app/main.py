@@ -22,11 +22,11 @@ import hmac
 import os
 from pathlib import Path
 
-import engine
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
+from app import engine
 from fast.labs.day2_control.control_hackathon import MODEL_LADDER, is_allowed_model
 
 HERE = Path(__file__).parent

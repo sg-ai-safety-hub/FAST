@@ -27,7 +27,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).parent
-OUT = HERE / "tasks.json"
+OUT = HERE.parent / "data" / "tasks.json"  # committed resource dir
 SOURCE = "https://raw.githubusercontent.com/s2e-lab/SecurityEval/main/dataset.jsonl"
 
 # The CWEs we play on, in board order, with the plain name the judge and the board show. Chosen so

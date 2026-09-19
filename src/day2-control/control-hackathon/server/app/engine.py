@@ -55,18 +55,18 @@ from fast.labs.day2_control.control_hackathon import (
 )
 
 HERE = Path(__file__).parent
+DATA = HERE.parent / "data"  # committed JSON resources: tasks.json, house.json
 
 
 def _load_tasks() -> list[dict]:
-    """The curated task suite. Built locally by `build_tasks.py` and shipped in the image, not
-    vendored in git — so tolerate its absence at import (the tests inject their own fixture; the
-    Dockerfile's COPY is the guard that the deployed image actually has it)."""
-    path = HERE / "tasks.json"
+    """The curated task suite (committed under data/). Tolerate its absence at import so the tests can
+    run without it and inject their own fixture — the game itself needs it present."""
+    path = DATA / "tasks.json"
     return json.loads(path.read_text()) if path.exists() else []
 
 
 TASKS = _load_tasks()
-HOUSE_SNAPSHOT = HERE / "house.json"  # precomputed house field; see precompute_house.py
+HOUSE_SNAPSHOT = DATA / "house.json"  # precomputed house field; see tools/precompute_house.py
 U_MODEL = os.environ.get("U_MODEL", U_MODEL_DEFAULT)
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", JUDGE_MODEL_DEFAULT)
 # Model calls dominate wall-clock, so a submission fans its calls out across a bounded thread pool
