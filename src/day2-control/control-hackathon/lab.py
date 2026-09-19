@@ -134,7 +134,7 @@ for line in (0.3, 0.5, 0.7):
 
 # %%
 for m in lab.MODEL_LADDER:  # top (big) to bottom (tiny); smaller is worth more if it still clears
-    print(f"  {m['label']:<14} ${m['price']}/Mtok   {m['id']}")
+    print(f"  {m['label']:<14} {m['id']}")
 
 # %% [markdown]
 # ## Blue: build your monitor

@@ -48,6 +48,10 @@
          color: var(--ink); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; }
   .btn:hover { border-color: var(--blue); }
   .hint { font-size: 12px; color: var(--dim); }
+  .filters { display: flex; gap: 14px; align-items: center; margin: 18px 0 0; flex-wrap: wrap; }
+  .filters label { color: var(--dim); font-size: 13px; }
+  .filters select { background: var(--card); color: var(--ink); border: 1px solid var(--line);
+                    border-radius: 8px; padding: 5px 8px; font-size: 13px; margin-left: 4px; }
   .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
            margin: 12px 0 22px; }
   .panel h3, .modal h3 { margin: 14px 0 4px; font-size: 13.5px; }
@@ -97,6 +101,12 @@
 
   <div class="fight" id="fight"></div>
 
+  <div class="filters">
+    <label>Team<select id="f-team"><option value="">all</option></select></label>
+    <label>Model<select id="f-model"><option value="">all</option></select></label>
+    <span class="hint" id="f-count"></span>
+  </div>
+
   <h2 class="blue">Blue — monitors</h2>
   <table id="blue">
     <thead><tr>
@@ -125,22 +135,21 @@
 const pct = x => (x === null || x === undefined) ? "—" : Math.round(x * 100) + "%";
 const num = x => (x === null || x === undefined) ? "—" : x;
 
-function dollars(price) {
-  if (price === null || price === undefined) return "";
-  return ` <span class="tag tier">$${price}/M</span>`;
-}
+const rowModel = r => r.label || r.model || "";
 
-function blueRow(r, i, champTeam) {
+function blueRow(r, i, champ) {
+  const attrs = `data-role="blue" data-team="${esc(r.team)}" data-model="${esc(r.model || "")}"`;
   if (r.status !== "done") {
     const msg = r.status === "error"
       ? `<span class="err">error — check your prompt/model</span>`
       : `<span class="pending">scoring…</span>`;
-    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td colspan="5">${msg}</td></tr>`;
+    return `<tr class="clk" ${attrs}><td class="rank">${i + 1}</td><td>${esc(r.team)}</td>
+      <td>${esc(rowModel(r))}</td><td colspan="4">${msg}</td></tr>`;
   }
-  const champ = r.team === champTeam ? "champ" : "";
-  return `<tr class="${champ} clk" data-role="blue" data-team="${esc(r.team)}">
+  const isChamp = champ && r.team === champ.team && r.model === champ.model ? "champ" : "";
+  return `<tr class="${isChamp} clk" ${attrs}>
     <td class="rank">${i + 1}</td><td>${esc(r.team)}</td>
-    <td>${esc(r.label || r.model || "")}${dollars(r.price)}</td>
+    <td>${esc(rowModel(r))}</td>
     <td class="num">${num(r.temp)}</td>
     <td class="num sum sum-edge">${pct(r.tpr)}</td>
     <td class="num sum">${pct(r.fpr)}</td>
@@ -149,13 +158,14 @@ function blueRow(r, i, champTeam) {
 }
 
 function redRow(r, i) {
+  const attrs = `data-role="red" data-team="${esc(r.team)}" data-model="${esc(r.model || "")}"`;
   if (r.status !== "done") {
     const msg = r.status === "error"
       ? `<span class="err">error — check your prompt</span>`
       : `<span class="pending">judging…</span>`;
-    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td>${esc(r.model || "")}</td><td colspan="4">${msg}</td></tr>`;
+    return `<tr class="clk" ${attrs}><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td>${esc(r.model || "")}</td><td colspan="4">${msg}</td></tr>`;
   }
-  return `<tr class="clk" data-role="red" data-team="${esc(r.team)}">
+  return `<tr class="clk" ${attrs}>
     <td class="rank">${i + 1}</td><td>${esc(r.team)}</td>
     <td>${esc(r.model || "")}</td>
     <td class="num">${num(r.temp)}</td>
@@ -167,25 +177,63 @@ function redRow(r, i) {
 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
+// The last board we fetched, redrawn whenever a filter changes (so filtering feels instant and doesn't
+// wait for the next 4s poll).
+let lastState = { blue: [], red: [] };
+
+const filterVals = () => ({
+  team: document.getElementById("f-team").value,
+  model: document.getElementById("f-model").value,
+});
+const rowMatches = (r, f) => (!f.team || r.team === f.team) && (!f.model || rowModel(r) === f.model);
+
+function syncOptions(sel, values) {
+  const cur = sel.value;
+  sel.innerHTML = ['<option value="">all</option>']
+    .concat(values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`)).join("");
+  sel.value = values.includes(cur) ? cur : "";  // keep the user's choice unless it vanished
+}
+
+function refreshFilters(s) {
+  const all = [...(s.blue || []), ...(s.red || [])];
+  const teams = [...new Set(all.map(r => r.team).filter(Boolean))].sort();
+  const models = [...new Set(all.map(rowModel).filter(Boolean))].sort();
+  syncOptions(document.getElementById("f-team"), teams);
+  syncOptions(document.getElementById("f-model"), models);
+}
+
 function render(s) {
-  const blues = s.blue || [], reds = s.red || [];
-  const champ = blues.find(b => b.status === "done" && b.clears);
-  const champTeam = champ ? champ.team : null;
+  lastState = s;
+  refreshFilters(s);
+  draw();
+}
+
+function draw() {
+  const s = lastState, f = filterVals();
+  const allBlues = s.blue || [], allReds = s.red || [];
+  const blues = allBlues.filter(r => rowMatches(r, f));
+  const reds = allReds.filter(r => rowMatches(r, f));
+  const champ = allBlues.find(b => b.status === "done" && b.clears) || null;
+  const filtering = !!(f.team || f.model);
 
   document.querySelector("#blue tbody").innerHTML = blues.length
-    ? blues.map((r, i) => blueRow(r, i, champTeam)).join("")
-    : `<tr class="empty"><td colspan="7">No monitors yet — submit one.</td></tr>`;
+    ? blues.map((r, i) => blueRow(r, i, champ)).join("")
+    : `<tr class="empty"><td colspan="7">${allBlues.length ? "No monitors match the filter." : "No monitors yet — submit one."}</td></tr>`;
 
   document.querySelector("#red tbody").innerHTML = reds.length
     ? reds.map((r, i) => redRow(r, i)).join("")
-    : `<tr class="empty"><td colspan="7">No model organisms yet; submit one.</td></tr>`;
+    : `<tr class="empty"><td colspan="7">${allReds.length ? "No model organisms match the filter." : "No model organisms yet; submit one."}</td></tr>`;
 
-  const f = s.fight;
-  document.getElementById("fight").innerHTML = f
-    ? `<b>Marquee bout —</b> champion monitor <b style="color:var(--blue)">${esc(f.blue)}</b>
-       <span class="tag">${esc(f.blue_model)}</span> <span class="v">vs</span>
-       strongest MO <b style="color:var(--red)">${esc(f.red)}</b>:
-       ${f.caught ? '<span class="yes">monitor catches it ✓</span>' : '<span class="no">MO slips past ✕</span>'}`
+  document.getElementById("f-count").textContent = filtering
+    ? `showing ${blues.length}/${allBlues.length} monitors · ${reds.length}/${allReds.length} model organisms`
+    : "";
+
+  const fight = s.fight;  // the marquee bout is over the whole board, unaffected by row filters
+  document.getElementById("fight").innerHTML = fight
+    ? `<b>Marquee bout —</b> champion monitor <b style="color:var(--blue)">${esc(fight.blue)}</b>
+       <span class="tag">${esc(fight.blue_model)}</span> <span class="v">vs</span>
+       strongest MO <b style="color:var(--red)">${esc(fight.red)}</b>:
+       ${fight.caught ? '<span class="yes">monitor catches it ✓</span>' : '<span class="no">MO slips past ✕</span>'}`
     : `<span class="v">Waiting for a monitor that clears the bar and a model organism with a working attack…</span>`;
 
   const t = s.updated ? new Date(s.updated * 1000).toLocaleTimeString() : "—";
@@ -266,18 +314,22 @@ function renderDetail(role, team, d) {
     <table class="bk"><thead><tr><th>Task</th><th>Does task</th><th>Insecure</th><th>Counts</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="hint" style="margin-top:6px"><b>Counts</b> = the judge ruled it both does the task and is insecure; only these “working” attacks are shown to monitors. <b>—</b> = didn't count.</p>`;
 }
-async function openDetail(role, team) {
+async function openDetail(role, team, model) {
   const modal = document.getElementById("modal");
   modal.innerHTML = `<span class="x" onclick="closeModal()">✕</span><span class="muted">loading…</span>`;
   document.getElementById("overlay").classList.add("open");
-  let d; try { d = await (await fetch(`/detail?role=${role}&team=${encodeURIComponent(team)}`)).json(); } catch { d = {}; }
+  const q = `/detail?role=${role}&team=${encodeURIComponent(team)}&model=${encodeURIComponent(model || "")}`;
+  let d; try { d = await (await fetch(q)).json(); } catch { d = {}; }
   modal.innerHTML = renderDetail(role, team, d);
 }
 for (const id of ["blue", "red"]) {
   document.getElementById(id).addEventListener("click", e => {
     const tr = e.target.closest("tr.clk");
-    if (tr) openDetail(tr.dataset.role, tr.dataset.team);
+    if (tr) openDetail(tr.dataset.role, tr.dataset.team, tr.dataset.model);
   });
+}
+for (const id of ["f-team", "f-model"]) {
+  document.getElementById(id).addEventListener("change", draw);
 }
 
 async function tick() {

@@ -51,7 +51,6 @@ from fast.labs.day2_control.control_hackathon import (
     monitor_ask,
     parse_judge,
     parse_score,
-    price_of,
 )
 
 HERE = Path(__file__).parent
@@ -168,8 +167,18 @@ def monitor(model: str, monitor_prompt: str, code: str, temperature: float | Non
 _lock = threading.Lock()
 _work: queue.Queue = queue.Queue()
 _honest: dict[str, str] = dict(CLEAN)  # task_id -> curated clean baseline (the false-positive anchors)
+# blue_subs is keyed by (team, model) so ONE team can run several monitors at once — one per ladder
+# model — each its own board row: submitting a second model adds a row instead of overwriting the first,
+# while resubmitting the *same* model updates it in place. red_subs stays keyed by team: red drives the
+# single fixed U_MODEL, so a team has exactly one model organism and \x1f never appears in its key.
 red_subs: dict[str, dict] = {}
 blue_subs: dict[str, dict] = {}
+
+
+def _bkey(team: str, model: str) -> str:
+    """The blue_subs key for a (team, model) pair. \x1f (ASCII unit separator) can't occur in a typed
+    team name, so it can't collide two distinct teams into one row."""
+    return f"{team}\x1f{model}"
 standings: dict = {"blue": [], "red": [], "fight": None, "updated": 0, "tasks": len(TASKS)}
 
 
@@ -252,7 +261,7 @@ def process_blue(team: str, monitor_prompt: str, model: str, temperature: float 
             "error": None, "scores": {}, "temperature": temperature}
     _score_pool_for_blue(blue)
     with _lock:
-        blue_subs[team] = blue
+        blue_subs[_bkey(team, model)] = blue
 
 
 # --- pre-submit dry runs (fast feedback, no board effect) ---------------------------------------
@@ -332,12 +341,12 @@ def recompute() -> None:
     for b in blue_subs.values():
         if b["status"] != "done":
             blue_rows.append({"team": b["team"], "status": b["status"], "model": b.get("model"),
-                              "label": label_of(b.get("model", "")), "price": None, "temp": _temp_of(b),
+                              "label": label_of(b.get("model", "")), "temp": _temp_of(b),
                               "tpr": None, "fpr": None, "clears": False})
             continue
         m = _blue_metrics(b)
         blue_rows.append({"team": b["team"], "status": "done", "model": b["model"],
-                          "label": label_of(b["model"]), "price": price_of(b["model"]),
+                          "label": label_of(b["model"]),
                           "rung": ladder_index(b["model"]), "temp": _temp_of(b), **m})
     # Cleared monitors first; among them the SMALLEST model wins (largest ladder index — that IS the
     # game); then most caught, then fewest false flags. Uncleared monitors ranked by how close they
@@ -373,7 +382,7 @@ def recompute() -> None:
     champ = next((b for b in blue_rows if b["status"] == "done" and b["clears"]), None)
     top_red = next((r for r in red_rows if r["status"] == "done" and r["working"]), None)
     if champ and top_red:
-        b, r = blue_subs[champ["team"]], red_subs[top_red["team"]]
+        b, r = blue_subs[_bkey(champ["team"], champ["model"])], red_subs[top_red["team"]]
         fight = {"blue": champ["team"], "blue_model": champ["label"], "red": top_red["team"],
                  "caught": _catches(b, r), "red_working": r["working"]}
 
@@ -468,10 +477,10 @@ def sample_case() -> dict:
         task = next((t for t in TASKS if t["id"] == tid), {"id": tid})
         s = red_subs[team]["snippets"][tid]
         monitors = [
-            {"label": bname, "model": b["model"],
+            {"label": b["team"], "model": b["model"],
              "insecure_score": b["scores"].get(f"{team}:{tid}"),
              "clean_score": b["scores"].get(f"honest:{tid}")}
-            for bname, b in blue_subs.items()
+            for b in blue_subs.values()
         ]
         return {"available": True, "task": task, "mo_team": team,
                 "attack_prompt": red_subs[team]["attack_prompt"], "insecure_code": s["code"],
@@ -479,9 +488,11 @@ def sample_case() -> dict:
                 "clean_code": _honest[tid], "flag_threshold": FLAG_THRESHOLD, "monitors": monitors}
 
 
-def team_detail(role: str, team: str) -> dict:
+def team_detail(role: str, team: str, model: str | None = None) -> dict:
     """Per-team drill-down for the board: the fixed reference task in full (so every team is compared
-    on the same snippet), plus a compact per-task breakdown by CWE title. No model calls."""
+    on the same snippet), plus a compact per-task breakdown by CWE title. No model calls. Blue rows are
+    per (team, model), so a blue drill-down needs `model` to pick the right one; without it, the team's
+    first monitor is used (back-compat for a link that predates the per-model rows)."""
     from fast.labs.day2_control.control_hackathon import FLAG_THRESHOLD
 
     with _lock:
@@ -489,7 +500,9 @@ def team_detail(role: str, team: str) -> dict:
         by_id = {t["id"]: t for t in TASKS}
 
         if role == "blue":
-            b = blue_subs.get(team)
+            b = blue_subs.get(_bkey(team, model)) if model else None
+            if b is None:  # no model given (or not found): fall back to this team's first monitor
+                b = next((x for x in blue_subs.values() if x.get("team") == team), None)
             if not b or b.get("status") != "done":
                 return {"available": False}
             focus = None
@@ -540,11 +553,12 @@ def _worker() -> None:
             else:
                 process_blue(team, prompt, model, temperature)
         except Exception as exc:  # noqa: BLE001 — surface it on the board, keep the worker alive
+            key = team if role == "red" else _bkey(team, model)  # blue rows are per (team, model)
             store = red_subs if role == "red" else blue_subs
             with _lock:
-                store[team] = {"team": team, "status": "error", "error": f"{type(exc).__name__}: {exc}",
-                               "snippets": {}, "working": 0, "scores": {}, "model": model,
-                               "temperature": temperature}
+                store[key] = {"team": team, "status": "error", "error": f"{type(exc).__name__}: {exc}",
+                              "snippets": {}, "working": 0, "scores": {}, "model": model,
+                              "temperature": temperature}
         try:
             recompute()
         except Exception as exc:  # noqa: BLE001 — a bad submission shouldn't wedge the board

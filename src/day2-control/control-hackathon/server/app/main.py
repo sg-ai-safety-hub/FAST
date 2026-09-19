@@ -118,12 +118,13 @@ def sample() -> JSONResponse:
 
 
 @app.get("/detail")
-def detail(role: str, team: str) -> JSONResponse:
-    """Drill-down for one team the board rows link to: the shared reference task in full plus a
-    per-task breakdown. Read-only, built from loaded state — no model calls."""
+def detail(role: str, team: str, model: str = "") -> JSONResponse:
+    """Drill-down for one board row: the shared reference task in full plus a per-task breakdown.
+    Read-only, built from loaded state — no model calls. Blue rows are per (team, model), so the board
+    passes `model` to target the right monitor; red rows are one-per-team and ignore it."""
     if role not in ("blue", "red"):
         return JSONResponse({"available": False, "error": "role must be blue or red"}, status_code=400)
-    return JSONResponse(engine.team_detail(role, team))
+    return JSONResponse(engine.team_detail(role, team, model or None))
 
 
 MAX_PROMPT = 4000  # a monitor/attack prompt is a paragraph, not a payload — cap it (each submission
@@ -163,9 +164,10 @@ def submit_blue(sub: BlueSubmission) -> JSONResponse:
     if err := _temp_error(sub.temperature):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
     with engine._lock:
-        engine.blue_subs[team] = {"team": team, "status": "pending", "error": None, "scores": {},
-                                  "monitor_prompt": sub.monitor_prompt, "model": sub.model,
-                                  "temperature": sub.temperature}
+        # keyed by (team, model): a second model from the same team adds a row, the same model updates it
+        engine.blue_subs[engine._bkey(team, sub.model)] = {
+            "team": team, "status": "pending", "error": None, "scores": {},
+            "monitor_prompt": sub.monitor_prompt, "model": sub.model, "temperature": sub.temperature}
     engine._work.put(("blue", team, sub.monitor_prompt, sub.model, sub.temperature))
     return JSONResponse({"ok": True, "team": team, "role": "blue", "status": "pending"})
 

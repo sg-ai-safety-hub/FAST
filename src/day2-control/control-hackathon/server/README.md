@@ -41,11 +41,13 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 ## Endpoints
 
 - `POST /submit_blue {team, monitor_prompt, model, temperature?}` · `POST /submit_red {team, attack_prompt, temperature?}`
+  - blue is keyed by (team, model): a second model from one team adds a row, the same model updates it; red is one row per team
 - `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` — no board effect
   - `temperature` (0–2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
 - `GET /models` — the ladder · `GET /state` — the board JSON
 - `GET /sample` — one worked example (task + MO/judge/monitor decisions) the notebook shows
-- `GET /detail?role=blue|red&team=NAME` — per-team drill-down the board rows link to
+- `GET /detail?role=blue|red&team=NAME&model=SLUG` — per-row drill-down the board links to (blue rows
+  are per (team, model), so `model` targets the right monitor; red is one-per-team and ignores it)
 
 ## Run locally
 
@@ -100,11 +102,21 @@ source .env
 gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT" --region "$REGION" \
   --service-account "$SERVICE_ACCOUNT" --allow-unauthenticated --max-instances 1 \
+  --cpu 2 --memory 1Gi --no-cpu-throttling --concurrency 80 \
   --set-env-vars "OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
 ```
 
-`--max-instances 1` keeps the in-memory board single and shared. Override models by appending
-`,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`.
+**Compute.** Cloud Run isn't sized anywhere in the code — with no flags it defaults to **1 vCPU /
+512 MiB**, and (the important part) it **throttles the CPU to near-zero between requests**. This
+referee does its work on a *background* thread — a submission just enqueues, and the worker scores it
+after the HTTP response is sent — so under the default throttling that scoring stalls until the next
+poll request happens to wake the instance. `--no-cpu-throttling` (CPU always allocated) is what keeps
+the worker running; set it. `--cpu 2 --memory 1Gi` gives the fan-out (8 concurrent OpenRouter calls
+per submission, `ARENA_WORKERS`) and the 20-way `/state` polling comfortable headroom; the default
+512 MiB is tight but not fatal. Tune with `--cpu` / `--memory` (Cloud Run allows fractional CPU only
+*with* throttling, so with `--no-cpu-throttling` use whole numbers: 1, 2, 4). `--max-instances 1` keeps
+the in-memory board single and shared — don't raise it, a second instance would hold a second, divergent
+board. Override models by appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`.
 
 **If deploy warns "Setting IAM policy failed" and the URL returns 403 Forbidden**, `--allow-unauthenticated`
 couldn't grant the public invoker binding. Try it directly:

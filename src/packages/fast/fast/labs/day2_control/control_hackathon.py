@@ -37,7 +37,7 @@ from fast.testing import checker, require
 
 # ================================================================================================
 # TUNABLES — the whole game's dials live here. Change a number, restart the server; nothing else to
-# touch. Slugs/prices verified on OpenRouter (Sept 2026).
+# touch. Slugs verified on OpenRouter (Sept 2026).
 # ================================================================================================
 
 # --- models (all open-weight on purpose) --------------------------------------------------------
@@ -51,19 +51,20 @@ JUDGE_MODEL_DEFAULT = "z-ai/glm-4.6"  # strong coder-grade referee: reads code f
 #   candidate resolves before swapping — the served OpenRouter catalogue moves (slugs go 404).
 
 # Blue's ladder, authored BIG → SMALL. The board rewards the *smallest* model whose monitor still
-# clears the bar (ranking is by position in this list, not price), so "walk down this list" is the
-# objective: a big model catches almost anything, the tiny ones only with a genuinely sharp prompt —
-# which is the skill the exercise is about. `price` (blended $/Mtok) is shown on the board, not ranked.
+# clears the bar (ranking is by position in this list), so "walk down this list" is the objective: a
+# big model catches almost anything, the tiny ones only with a genuinely sharp prompt — which is the
+# skill the exercise is about. The `params`/`trained`/`price` per rung are reference-only and currently
+# unused: nothing but the label is shown, and ranking is list position.
 # Rungs verified live (Sept 2026): each resolves on OpenRouter AND reliably emits a parseable score.
 # Two candidates were cut after testing: google/gemma-3-4b-it (its provider 429s almost every call —
 # unusable in a room of 20) and qwen/qwen-2.5-0.5b-instruct (too small to follow the SCORE format — it
 # returns nothing parseable, so it can never participate). Re-check with tools/validate_ladder.py.
 MODEL_LADDER: list[dict] = [
-    {"id": "meta-llama/llama-3.3-70b-instruct", "label": "Llama-3.3 70B", "price": 0.16},
-    {"id": "google/gemma-3-27b-it", "label": "Gemma-3 27B", "price": 0.17},
-    {"id": "qwen/qwen-2.5-7b-instruct", "label": "Qwen2.5 7B", "price": 0.13},
-    {"id": "meta-llama/llama-3.2-3b-instruct", "label": "Llama-3.2 3B", "price": 0.12},
-    {"id": "meta-llama/llama-3.2-1b-instruct", "label": "Llama-3.2 1B", "price": 0.07},
+    {"id": "meta-llama/llama-3.3-70b-instruct", "label": "Llama-3.3 70B", "params": "70B", "trained": "Dec 2023", "price": 0.16},
+    {"id": "google/gemma-3-27b-it", "label": "Gemma-3 27B", "params": "27B", "trained": "Aug 2024", "price": 0.17},
+    {"id": "qwen/qwen-2.5-7b-instruct", "label": "Qwen2.5 7B", "params": "7B", "trained": "2024", "price": 0.13},
+    {"id": "meta-llama/llama-3.2-3b-instruct", "label": "Llama-3.2 3B", "params": "3B", "trained": "Dec 2023", "price": 0.12},
+    {"id": "meta-llama/llama-3.2-1b-instruct", "label": "Llama-3.2 1B", "params": "1B", "trained": "Dec 2023", "price": 0.07},
 ]
 
 # --- the detection bar (what it takes blue to "clear") ------------------------------------------
@@ -101,6 +102,16 @@ def ladder_index(model: str) -> int:
 
 def price_of(model: str) -> float:
     return next((m["price"] for m in MODEL_LADDER if m["id"] == model), float("inf"))
+
+
+def params_of(model: str) -> str:
+    """Display size of a ladder model (e.g. "70B"); "" for an off-ladder id."""
+    return next((m["params"] for m in MODEL_LADDER if m["id"] == model), "")
+
+
+def trained_of(model: str) -> str:
+    """Pretraining-data cutoff of a ladder model (e.g. "Dec 2023"); "" for an off-ladder id."""
+    return next((m["trained"] for m in MODEL_LADDER if m["id"] == model), "")
 
 
 def label_of(model: str) -> str:

@@ -5,7 +5,7 @@ WORKDIR /app
 # The game logic is the installed `fast` package. TEMPORARY: pinned to the feature branch so the
 # image can be deployed before merge. Before the program, set this to the same pinned tag the
 # notebook install cell uses (`@main` → a release tag) so the image and the notebook can't drift.
-ARG FAST_REF=improve-control-hackathon
+ARG FAST_REF=main
 
 # git is needed to pip-install the `fast` package from GitHub below.
 RUN apt-get update && apt-get install -y --no-install-recommends git \

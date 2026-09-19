@@ -49,9 +49,9 @@ def main() -> None:
     if not any(working.values()):
         print("  WARNING: no house red produced a judge-confirmed insecure snippet — the insecure "
               "pool is empty and every monitor will read 'below bar'. Check the key and the judge.")
-    for team, b in snap["blue"].items():
+    for b in snap["blue"].values():
         m = engine._blue_metrics(b)
-        print(f"  house blue {team:<20} {b['model']:<34} "
+        print(f"  house blue {b['team']:<20} {b['model']:<34} "
               f"tpr={m['tpr']} fpr={m['fpr']} clears={m['clears']}")
 
     engine.HOUSE_SNAPSHOT.write_text(json.dumps(snap, indent=2))
