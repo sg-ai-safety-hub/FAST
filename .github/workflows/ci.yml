@@ -36,8 +36,8 @@ jobs:
       - name: Notebooks — solutions pass, stubs fail their checks
         run: .venv/bin/python tools/run_notebooks.py
 
-      # The Day 2 live-control referee's scoring engine isn't a notebook, so run_notebooks won't
-      # touch it. It's the most intricate code in the repo; this runs it with the model layer
-      # stubbed (no API key, no network) so a scoring regression fails here, not in the room.
-      - name: Live-control referee engine
-        run: .venv/bin/python src/day2-control/live-control/server/test_engine.py
+      # The Day 2 control-hackathon referee's scoring engine isn't a notebook, so run_notebooks
+      # won't touch it. This runs it with the model layer stubbed (no API key, no network) so a
+      # scoring regression fails here, not in the room.
+      - name: Control-hackathon referee engine
+        run: .venv/bin/python src/day2-control/control-hackathon/server/tools/test_engine.py

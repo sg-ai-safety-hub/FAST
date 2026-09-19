@@ -6,14 +6,14 @@ and where today's experiments hit their limits.
 
 ## Run of show
 
-- [`control-hackathon/`](control-hackathon/) · **AI control hackathon (synthetic)** · Hackathon
-- [`live-control/`](live-control/) · **Live control arena (real models)** · Hackathon
+- [`control-hackathon/`](control-hackathon/) · **Insecure-code control hackathon** · Hackathon
 
-The hackathon runs in two halves, playing the same game twice. The first builds the control
-vocabulary on a fast synthetic arena, where teams tune protocols and attack policies against numbers
-they can see. The second keeps the exact same interface but puts a real model in the loop: the
-suspicion scores and backdoors are now produced by real models on real coding tasks, teams write the
-protocol *and* the prompt behind it, and compete on a live board.
+One hackathon, one live board, played against real models. A stream of small Python tasks arrives;
+red writes a prompt that turns an untrusted model into a model organism writing insecure code, and
+blue writes a monitor — a prompt plus a model it picks — that tries to catch it. Blue competes to
+catch with the *smallest* model on the ladder; red competes to fool the most monitors; a strong
+judge model settles ground truth. Teams swap sides partway through, so everyone attacks the
+monitoring assumptions they just relied on.
 
 Order here is the source of truth. Directories are unnumbered so reordering the run of show
 doesn't rename paths or break bookmarked Colab links. Guest lectures have no directory; speaker

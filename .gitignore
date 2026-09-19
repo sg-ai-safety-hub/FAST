@@ -219,3 +219,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Day 2 control-hackathon: scratch prompting notes, not for the public repo
+src/day2-control/control-hackathon/lessons.md
+src/day2-control/control-hackathon.md

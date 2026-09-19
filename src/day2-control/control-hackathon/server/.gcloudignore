@@ -1,0 +1,16 @@
+# What `gcloud run deploy --source .` uploads to Cloud Build. Its main job is secret hygiene: keep a
+# local .env out of the upload (tasks.json, clean.json and house.json are committed and ship normally).
+
+.git
+.gitignore
+
+# Never upload a real key. `cp .env.example .env` puts one in this directory; keep it out of the build.
+.env
+
+# Local-only cruft the image doesn't need.
+__pycache__/
+*.pyc
+.venv/
+
+# Dev/ops scripts (build_tasks, precompute_house, validate_ladder, tests) aren't part of the runtime.
+tools/
