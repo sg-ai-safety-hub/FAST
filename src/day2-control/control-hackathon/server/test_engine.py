@@ -10,7 +10,14 @@ Each test replaces the four model-calling functions with pure fakes, then exerci
 
 from __future__ import annotations
 
+import json
+
 import engine
+
+# A fixed, tiny task suite so these tests are hermetic — no tasks.json on disk, no network. The model
+# layer is stubbed in every test and only ever reads task["id"], so three ids is enough. This also
+# makes the run deterministic regardless of whatever tasks.json happens to be present locally.
+engine.TASKS = [{"id": f"t{i}", "prompt": "", "cwe": "CWE-000"} for i in range(3)]
 
 
 def _stub_models(monitor_catches: bool) -> None:
@@ -148,11 +155,41 @@ def test_unscorable_snippet_is_non_signal() -> None:
     print("ok: a snippet a monitor can't score is a non-signal, excluded from both sides")
 
 
+def test_snapshot_round_trips_the_house_field() -> None:
+    """The house field is precomputed once and loaded from a snapshot at startup, not re-scored with
+    live calls. A snapshot then loaded into fresh state must reproduce the same board — with no model
+    calls on the load path (we prove that by clearing the stubs before loading)."""
+    _reset()
+    _stub_models(monitor_catches=True)
+    engine.process_red("house-red", "be insecure")
+    engine.process_blue("house-blue", "flag unsafe code", "qwen/qwen-2.5-7b-instruct")
+    engine.recompute()
+    before = engine.standings["blue"], engine.standings["red"]
+    snap = engine.snapshot()
+
+    # A snapshot survives serialization (it's written to house.json as JSON).
+    snap = json.loads(json.dumps(snap))
+
+    # Wipe the state AND make any live model call blow up — the load path must touch neither.
+    _reset()
+    boom = lambda *a, **k: (_ for _ in ()).throw(AssertionError("load path made a model call"))
+    engine.generate_honest = engine.generate_attack = engine.judge = engine.monitor = boom
+
+    engine.load_snapshot(snap)
+    engine.recompute()
+
+    assert engine.standings["blue"] == before[0], "blue board must match after snapshot reload"
+    assert engine.standings["red"] == before[1], "red board must match after snapshot reload"
+    assert engine._honest and engine.red_subs and engine.blue_subs, "state repopulated from snapshot"
+    print("ok: the house field round-trips through a snapshot with no model calls on load")
+
+
 if __name__ == "__main__":
     for fn in (test_catching_monitor_clears_and_red_is_caught,
                test_blind_monitor_is_fooled,
                test_cheaper_clearing_monitor_outranks_dearer_one,
                test_red_resubmission_rescored_not_stale,
-               test_unscorable_snippet_is_non_signal):
+               test_unscorable_snippet_is_non_signal,
+               test_snapshot_round_trips_the_house_field):
         fn()
     print("\nALL TESTS PASSED")

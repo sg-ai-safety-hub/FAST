@@ -1,0 +1,21 @@
+# What `gcloud run deploy --source .` uploads to Cloud Build.
+#
+# When this file exists, gcloud uses it INSTEAD of .gitignore to pick what to upload. That matters
+# here: tasks.json and house.json are gitignored but MUST ship in the build context — the Dockerfile
+# COPYs them — so they are deliberately NOT excluded below. Without this file, gcloud would fall back
+# to .gitignore, drop both, and the build would fail on the COPY.
+
+.git
+.gitignore
+
+# Never upload a real key. `cp .env.example .env` puts one in this directory; keep it out of the build.
+.env
+
+# Local-only cruft the image doesn't need.
+__pycache__/
+*.pyc
+.venv/
+
+# Dev/ops scripts that aren't part of the running server.
+test_engine.py
+validate_ladder.py

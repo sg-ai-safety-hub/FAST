@@ -55,7 +55,18 @@ from fast.labs.day2_control.control_hackathon import (
 )
 
 HERE = Path(__file__).parent
-TASKS = json.loads((HERE / "tasks.json").read_text())
+
+
+def _load_tasks() -> list[dict]:
+    """The curated task suite. Built locally by `build_tasks.py` and shipped in the image, not
+    vendored in git — so tolerate its absence at import (the tests inject their own fixture; the
+    Dockerfile's COPY is the guard that the deployed image actually has it)."""
+    path = HERE / "tasks.json"
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+TASKS = _load_tasks()
+HOUSE_SNAPSHOT = HERE / "house.json"  # precomputed house field; see precompute_house.py
 U_MODEL = os.environ.get("U_MODEL", U_MODEL_DEFAULT)
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", JUDGE_MODEL_DEFAULT)
 # Model calls dominate wall-clock, so a submission fans its calls out across a bounded thread pool
@@ -364,11 +375,56 @@ def recompute() -> None:
 
 
 def seed_house() -> None:
-    """Put the two-a-side house teams on the board so a fresh room has something to rank against."""
+    """Put the two-a-side house teams on the board so a fresh room has something to rank against.
+    This *live-scores* them via the worker (many model calls). Prefer the precomputed snapshot in
+    production — `load_house_snapshot()` — and keep this as the no-snapshot fallback (local dev)."""
     for name, cfg in HOUSE_BLUE.items():
         _work.put(("blue", name, cfg["monitor_prompt"], cfg["model"]))
     for name, prompt in HOUSE_RED.items():
         _work.put(("red", name, prompt, None))
+
+
+# --- house snapshot: precompute the house field once, load it warm ------------------------------
+
+
+def snapshot() -> dict:
+    """The three pieces of state that make up the house field, ready to serialize: the clean
+    baselines, the red teams (with their judged snippets), and the blue teams (with their cached
+    per-snippet scores). Participant submissions are *not* in here — they arrive live in the room."""
+    with _lock:
+        return {"honest": dict(_honest), "red": dict(red_subs), "blue": dict(blue_subs)}
+
+
+def load_snapshot(data: dict) -> None:
+    """Populate the house field from a `snapshot()` dict instead of re-scoring it with live calls."""
+    with _lock:
+        _honest.clear()
+        _honest.update(data.get("honest", {}))
+        red_subs.clear()
+        red_subs.update(data.get("red", {}))
+        blue_subs.clear()
+        blue_subs.update(data.get("blue", {}))
+
+
+def load_house_snapshot() -> bool:
+    """Load `house.json` if it's there (the deployed image ships it). Returns whether it loaded, so
+    the caller can fall back to live `seed_house()` when there's no snapshot."""
+    if not HOUSE_SNAPSHOT.exists():
+        return False
+    load_snapshot(json.loads(HOUSE_SNAPSHOT.read_text()))
+    return True
+
+
+def precompute_house() -> dict:
+    """Run the whole house field once, synchronously, and return a snapshot to persist. Reds are
+    processed before blues so the house monitors score over a pool that already holds the house
+    attacks. This makes the paid model calls — run it before deploying, not on the server."""
+    _ensure_honest()
+    for name, prompt in HOUSE_RED.items():
+        process_red(name, prompt)
+    for name, cfg in HOUSE_BLUE.items():
+        process_blue(name, cfg["monitor_prompt"], cfg["model"])
+    return snapshot()
 
 
 def _worker() -> None:

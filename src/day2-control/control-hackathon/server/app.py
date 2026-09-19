@@ -18,11 +18,12 @@ Deploy it disposable and isolated all the same; the OpenRouter key is the only s
 
 from __future__ import annotations
 
+import hmac
 import os
 from pathlib import Path
 
 import engine
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -30,8 +31,45 @@ from fast.labs.day2_control.control_hackathon import MODEL_LADDER, is_allowed_mo
 
 HERE = Path(__file__).parent
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
+# A shared room key gates the whole board so a public URL isn't open to the internet (which would let
+# anyone spam submissions and burn the OpenRouter budget). Unset ⇒ open, for local dev. Hand the key
+# to the room; the notebook sends it as a header, and the board is opened once as `URL/?key=<key>`.
+ROOM_KEY = os.environ.get("ROOM_KEY", "")
 
 app = FastAPI(title="Insecure-code control hackathon referee")
+
+_KEY_PROMPT = (
+    "<!doctype html><meta charset=utf-8><title>Room key required</title>"
+    "<body style='font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem'>"
+    "<h1>Room key required</h1><p>This board is gated. Open it as "
+    "<code>&lt;this-url&gt;/?key=YOUR_KEY</code> with the key your instructor shared.</p>"
+)
+
+
+def _presented_key(request: Request) -> str:
+    """The key a caller offers: header for the notebook, `?key=` / cookie for the browser board."""
+    header = request.headers.get("x-room-key")
+    if header:
+        return header
+    auth = request.headers.get("authorization", "")
+    if auth[:7].lower() == "bearer ":
+        return auth[7:].strip()
+    return request.query_params.get("key") or request.cookies.get("room_key") or ""
+
+
+@app.middleware("http")
+async def require_room_key(request: Request, call_next):
+    if not ROOM_KEY:  # no key configured — open (local dev)
+        return await call_next(request)
+    if not hmac.compare_digest(_presented_key(request), ROOM_KEY):
+        if request.method == "GET" and request.url.path == "/":
+            return HTMLResponse(_KEY_PROMPT, status_code=401)  # a browser: show how to pass the key
+        return JSONResponse({"ok": False, "error": "room key required"}, status_code=401)
+    response = await call_next(request)
+    # Board opened with a valid `?key=` — remember it in a cookie so the page's /state polls carry it.
+    if request.url.path == "/" and request.query_params.get("key"):
+        response.set_cookie("room_key", ROOM_KEY, max_age=86400, httponly=True, samesite="lax")
+    return response
 
 
 class BlueSubmission(BaseModel):
@@ -139,11 +177,15 @@ def reset(req: AdminRequest) -> JSONResponse:
     with engine._lock:
         engine.red_subs.clear()
         engine.blue_subs.clear()
-    engine.seed_house()
+    if not engine.load_house_snapshot():  # restore the precomputed house field, free and instant
+        engine.seed_house()               # no snapshot (local dev) — re-score it live
     engine.recompute()
     return JSONResponse({"ok": True})
 
 
 engine.start_worker()
-engine.seed_house()
+# The house field is precomputed into house.json (see precompute_house.py) and shipped in the image,
+# so a cold start loads a warm board instead of re-scoring the house with live model calls every time.
+if not engine.load_house_snapshot():
+    engine.seed_house()  # fallback for local dev without a snapshot: score the house live
 engine.recompute()

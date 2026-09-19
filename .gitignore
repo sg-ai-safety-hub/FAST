@@ -222,3 +222,6 @@ __marimo__/
 
 # Arena task suite is curated from SecurityEval at deploy time, not vendored (see build_tasks.py)
 src/day2-control/control-hackathon/server/tasks.json
+
+# Precomputed house field: model-generated insecure snippets, built before deploy (precompute_house.py)
+src/day2-control/control-hackathon/server/house.json

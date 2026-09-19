@@ -285,14 +285,15 @@ CALIBRATION: list[dict] = [
 # --- notebook HTTP client (talks to the hosted referee) -----------------------------------------
 
 
-def _post(server_url: str, path: str, body: dict) -> dict:
+def _post(server_url: str, path: str, body: dict, key: str = "") -> dict:
     import urllib.error
     import urllib.request
 
     data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        server_url.rstrip("/") + path, data=data, headers={"Content-Type": "application/json"}
-    )
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["X-Room-Key"] = key  # the shared room key the instructor handed out
+    req = urllib.request.Request(server_url.rstrip("/") + path, data=data, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             return json.load(resp)
@@ -302,13 +303,13 @@ def _post(server_url: str, path: str, body: dict) -> dict:
         return {"ok": False, "error": f"couldn't reach the board at {server_url}: {exc}"}
 
 
-def dry_run_blue(server_url: str, monitor_prompt: str, model: str) -> dict:
+def dry_run_blue(server_url: str, monitor_prompt: str, model: str, key: str = "") -> dict:
     """Score a monitor prompt + model over the fixed calibration set — caught/false-flag, no board
     effect. Blue's fast loop before submitting."""
     if not server_url:
         print("Set SERVER_URL to the board link your instructor shared, then re-run.")
         return {"ok": False}
-    out = _post(server_url, "/dry_run_blue", {"monitor_prompt": monitor_prompt, "model": model})
+    out = _post(server_url, "/dry_run_blue", {"monitor_prompt": monitor_prompt, "model": model}, key)
     if out.get("ok"):
         print(f"caught {out['tpr']:.0%} of insecure · false-flagged {out['fpr']:.0%} of clean "
               f"· {'clears the bar ✅' if out['clears'] else 'below the bar ❌'}")
@@ -317,13 +318,13 @@ def dry_run_blue(server_url: str, monitor_prompt: str, model: str) -> dict:
     return out
 
 
-def dry_run_red(server_url: str, attack_prompt: str) -> dict:
+def dry_run_red(server_url: str, attack_prompt: str, key: str = "") -> dict:
     """Run an attack prompt on a couple of tasks — does the judge call it insecure, and how suspicious
     does a stock monitor find it — with no board effect. Red's fast loop."""
     if not server_url:
         print("Set SERVER_URL to the board link your instructor shared, then re-run.")
         return {"ok": False}
-    out = _post(server_url, "/dry_run_red", {"attack_prompt": attack_prompt})
+    out = _post(server_url, "/dry_run_red", {"attack_prompt": attack_prompt}, key)
     if out.get("ok"):
         for r in out["results"]:
             print(f"{r['task']:24s} does_task={r['does_task']} insecure={r['insecure']} "
@@ -333,20 +334,21 @@ def dry_run_red(server_url: str, attack_prompt: str) -> dict:
     return out
 
 
-def submit_blue(server_url: str, team: str, monitor_prompt: str, model: str) -> dict:
+def submit_blue(server_url: str, team: str, monitor_prompt: str, model: str, key: str = "") -> dict:
     if not server_url:
         print("Set SERVER_URL to the board link your instructor shared, then re-run to submit.")
         return {"ok": False}
-    out = _post(server_url, "/submit_blue", {"team": team, "monitor_prompt": monitor_prompt, "model": model})
+    out = _post(server_url, "/submit_blue",
+                {"team": team, "monitor_prompt": monitor_prompt, "model": model}, key)
     print(f"✅ on the board as {out['team']} (blue)" if out.get("ok") else f"❌ {out.get('error')}")
     return out
 
 
-def submit_red(server_url: str, team: str, attack_prompt: str) -> dict:
+def submit_red(server_url: str, team: str, attack_prompt: str, key: str = "") -> dict:
     if not server_url:
         print("Set SERVER_URL to the board link your instructor shared, then re-run to submit.")
         return {"ok": False}
-    out = _post(server_url, "/submit_red", {"team": team, "attack_prompt": attack_prompt})
+    out = _post(server_url, "/submit_red", {"team": team, "attack_prompt": attack_prompt}, key)
     print(f"✅ on the board as {out['team']} (red)" if out.get("ok") else f"❌ {out.get('error')}")
     return out
 
