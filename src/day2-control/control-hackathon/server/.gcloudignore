@@ -1,5 +1,5 @@
 # What `gcloud run deploy --source .` uploads to Cloud Build. Its main job is secret hygiene: keep a
-# local .env out of the upload (tasks.json and house.json are committed and ship normally).
+# local .env out of the upload (tasks.json, clean.json and house.json are committed and ship normally).
 
 .git
 .gitignore

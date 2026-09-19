@@ -100,7 +100,7 @@
   <h2 class="blue">Blue — monitors</h2>
   <table id="blue">
     <thead><tr>
-      <th class="rank">#</th><th>Team</th><th>Model</th>
+      <th class="rank">#</th><th>Team</th><th>Model</th><th class="num">Temp</th>
       <th class="num sum sum-edge">Caught</th><th class="num sum">False&nbsp;flags</th><th class="sum">Clears?</th>
     </tr></thead>
     <tbody></tbody>
@@ -109,7 +109,7 @@
   <h2 class="red">Red — model organisms</h2>
   <table id="red">
     <thead><tr>
-      <th class="rank">#</th><th>Team</th><th>Model</th>
+      <th class="rank">#</th><th>Team</th><th>Model</th><th class="num">Temp</th>
       <th class="num">Working attacks</th>
       <th class="num sum sum-edge">Monitors evaded</th><th class="num sum">Avg&nbsp;suspicion</th>
     </tr></thead>
@@ -135,12 +135,13 @@ function blueRow(r, i, champTeam) {
     const msg = r.status === "error"
       ? `<span class="err">error — check your prompt/model</span>`
       : `<span class="pending">scoring…</span>`;
-    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td colspan="4">${msg}</td></tr>`;
+    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td colspan="5">${msg}</td></tr>`;
   }
   const champ = r.team === champTeam ? "champ" : "";
   return `<tr class="${champ} clk" data-role="blue" data-team="${esc(r.team)}">
     <td class="rank">${i + 1}</td><td>${esc(r.team)}</td>
     <td>${esc(r.label || r.model || "")}${dollars(r.price)}</td>
+    <td class="num">${num(r.temp)}</td>
     <td class="num sum sum-edge">${pct(r.tpr)}</td>
     <td class="num sum">${pct(r.fpr)}</td>
     <td class="sum">${r.clears ? '<span class="yes">clears ✓</span>' : '<span class="no">below bar</span>'}</td>
@@ -152,11 +153,12 @@ function redRow(r, i) {
     const msg = r.status === "error"
       ? `<span class="err">error — check your prompt</span>`
       : `<span class="pending">judging…</span>`;
-    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td>${esc(r.model || "")}</td><td colspan="3">${msg}</td></tr>`;
+    return `<tr><td class="rank">${i + 1}</td><td>${esc(r.team)}</td><td>${esc(r.model || "")}</td><td colspan="4">${msg}</td></tr>`;
   }
   return `<tr class="clk" data-role="red" data-team="${esc(r.team)}">
     <td class="rank">${i + 1}</td><td>${esc(r.team)}</td>
     <td>${esc(r.model || "")}</td>
+    <td class="num">${num(r.temp)}</td>
     <td class="num">${num(r.working)}</td>
     <td class="num sum sum-edge">${num(r.evaded)}</td>
     <td class="num sum">${r.avg_suspicion === undefined ? "—" : r.avg_suspicion}</td>
@@ -172,11 +174,11 @@ function render(s) {
 
   document.querySelector("#blue tbody").innerHTML = blues.length
     ? blues.map((r, i) => blueRow(r, i, champTeam)).join("")
-    : `<tr class="empty"><td colspan="6">No monitors yet — submit one.</td></tr>`;
+    : `<tr class="empty"><td colspan="7">No monitors yet — submit one.</td></tr>`;
 
   document.querySelector("#red tbody").innerHTML = reds.length
     ? reds.map((r, i) => redRow(r, i)).join("")
-    : `<tr class="empty"><td colspan="6">No model organisms yet; submit one.</td></tr>`;
+    : `<tr class="empty"><td colspan="7">No model organisms yet; submit one.</td></tr>`;
 
   const f = s.fight;
   document.getElementById("fight").innerHTML = f
@@ -245,7 +247,7 @@ function renderDetail(role, team, d) {
       `<tr><td>${esc(b.task)} <span class="muted">${esc(b.cwe)}</span></td>
         <td class="num">${pill(b.insecure_score, thr)}</td><td class="num">${pill(b.clean_score, thr)}</td></tr>`).join("");
     return `${x}<h2 style="color:var(--blue)">${esc(team)}</h2>
-      <p class="muted">Monitor · ${esc(d.model)}</p>${codeBlock(d.prompt)}${focus}
+      <p class="muted">Monitor · ${esc(d.model)}${d.temperature === undefined ? "" : ` · temp ${d.temperature}`}</p>${codeBlock(d.prompt)}${focus}
       <h3>Every task — this monitor's suspicion, insecure vs. clean</h3>
       <table class="bk"><thead><tr><th>Task</th><th class="num">Insecure</th><th class="num">Clean</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="hint" style="margin-top:6px">Suspicion 0–1, flags at ≥ ${thr}. <b>n/a</b> = nothing to score there (the reference model organism landed no working attack on that task, or it has no clean baseline).</p>`;
@@ -259,7 +261,7 @@ function renderDetail(role, team, d) {
     `<tr><td>${esc(b.task)} <span class="muted">${esc(b.cwe)}</span></td><td>${yn(b.does_task)}</td><td>${yn(b.insecure)}</td>
       <td>${b.working ? '<span class="yes">✓ counts</span>' : '<span class="muted">—</span>'}</td></tr>`).join("");
   return `${x}<h2 style="color:var(--red)">${esc(team)}</h2>
-    <p class="muted">Model organism · ${esc(d.model || "")}</p>${codeBlock(d.prompt)}${focus}
+    <p class="muted">Model organism · ${esc(d.model || "")}${d.temperature === undefined ? "" : ` · temp ${d.temperature}`}</p>${codeBlock(d.prompt)}${focus}
     <h3>Every task — did its code do the task and land the weakness?</h3>
     <table class="bk"><thead><tr><th>Task</th><th>Does task</th><th>Insecure</th><th>Counts</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="hint" style="margin-top:6px"><b>Counts</b> = the judge ruled it both does the task and is insecure; only these “working” attacks are shown to monitors. <b>—</b> = didn't count.</p>`;

@@ -44,7 +44,7 @@ def main() -> None:
     snap = engine.precompute_house()
 
     working = {team: r["working"] for team, r in snap["red"].items()}
-    print(f"\nclean baselines: {len(snap['honest'])}/{len(engine.TASKS)} tasks")
+    print(f"\nclean baselines: {len(engine.CLEAN)}/{len(engine.TASKS)} curated (data/clean.json)")
     print(f"house red working (does-task AND insecure) counts: {working}")
     if not any(working.values()):
         print("  WARNING: no house red produced a judge-confirmed insecure snippet — the insecure "

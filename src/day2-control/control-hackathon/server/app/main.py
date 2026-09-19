@@ -59,24 +59,34 @@ async def require_room_key(request: Request, call_next):
     return await call_next(request)
 
 
+# Every submission carries a `temperature` for the caller's OWN model — blue's monitor, red's U — so
+# teams can feel how sampling changes results. Default 0.5. The judge is never sampled at a team's
+# temperature; ground truth stays reproducible (see engine._chat).
+DEFAULT_TEMPERATURE = 0.5
+
+
 class BlueSubmission(BaseModel):
     team: str
     monitor_prompt: str
     model: str
+    temperature: float = DEFAULT_TEMPERATURE
 
 
 class RedSubmission(BaseModel):
     team: str
     attack_prompt: str
+    temperature: float = DEFAULT_TEMPERATURE
 
 
 class MonitorDryRun(BaseModel):
     monitor_prompt: str
     model: str
+    temperature: float = DEFAULT_TEMPERATURE
 
 
 class AttackDryRun(BaseModel):
     attack_prompt: str
+    temperature: float = DEFAULT_TEMPERATURE
 
 
 class AdminRequest(BaseModel):
@@ -133,6 +143,13 @@ def _prompt_error(prompt: str, kind: str) -> str | None:
     return None
 
 
+def _temp_error(t: float) -> str | None:
+    # OpenRouter accepts 0..2; keep teams in that range so a typo can't error every call in a submission.
+    if not 0.0 <= t <= 2.0:
+        return f"temperature must be between 0 and 2 (got {t})"
+    return None
+
+
 @app.post("/submit_blue")
 def submit_blue(sub: BlueSubmission) -> JSONResponse:
     team = _team_ok(sub.team)
@@ -143,10 +160,13 @@ def submit_blue(sub: BlueSubmission) -> JSONResponse:
     if not is_allowed_model(sub.model):
         return JSONResponse({"ok": False, "error": f"model {sub.model!r} is not on the ladder — "
                              "GET /models for the choices"}, status_code=400)
+    if err := _temp_error(sub.temperature):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     with engine._lock:
         engine.blue_subs[team] = {"team": team, "status": "pending", "error": None, "scores": {},
-                                  "monitor_prompt": sub.monitor_prompt, "model": sub.model}
-    engine._work.put(("blue", team, sub.monitor_prompt, sub.model))
+                                  "monitor_prompt": sub.monitor_prompt, "model": sub.model,
+                                  "temperature": sub.temperature}
+    engine._work.put(("blue", team, sub.monitor_prompt, sub.model, sub.temperature))
     return JSONResponse({"ok": True, "team": team, "role": "blue", "status": "pending"})
 
 
@@ -157,10 +177,13 @@ def submit_red(sub: RedSubmission) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "set a real team name"}, status_code=400)
     if err := _prompt_error(sub.attack_prompt, "attack"):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if err := _temp_error(sub.temperature):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     with engine._lock:
         engine.red_subs[team] = {"team": team, "status": "pending", "error": None, "snippets": {},
-                                 "working": 0, "attack_prompt": sub.attack_prompt}
-    engine._work.put(("red", team, sub.attack_prompt, None))
+                                 "working": 0, "attack_prompt": sub.attack_prompt,
+                                 "temperature": sub.temperature}
+    engine._work.put(("red", team, sub.attack_prompt, None, sub.temperature))
     return JSONResponse({"ok": True, "team": team, "role": "red", "status": "pending"})
 
 
@@ -171,8 +194,10 @@ def dry_run_blue(sub: MonitorDryRun) -> JSONResponse:
                             status_code=400)
     if err := _prompt_error(sub.monitor_prompt, "monitor"):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if err := _temp_error(sub.temperature):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     try:
-        out = engine.dry_run_blue(sub.monitor_prompt, sub.model)
+        out = engine.dry_run_blue(sub.monitor_prompt, sub.model, sub.temperature)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=400)
     return JSONResponse({"ok": True, **out})
@@ -182,8 +207,10 @@ def dry_run_blue(sub: MonitorDryRun) -> JSONResponse:
 def dry_run_red(sub: AttackDryRun) -> JSONResponse:
     if err := _prompt_error(sub.attack_prompt, "attack"):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if err := _temp_error(sub.temperature):
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
     try:
-        results = engine.dry_run_red(sub.attack_prompt)
+        results = engine.dry_run_red(sub.attack_prompt, temperature=sub.temperature)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=400)
     return JSONResponse({"ok": True, "results": results})

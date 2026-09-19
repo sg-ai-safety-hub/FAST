@@ -8,15 +8,16 @@ Laid out in three dirs plus the container config at the root:
 
 - `app/` — the running server: `main.py` (endpoints + room-key gate), `engine.py` (model calls, pool,
   scoring, house snapshot), `leaderboard.html` (the page at `/`).
-- `data/` — committed JSON resources: `tasks.json` (curated SecurityEval suite) and `house.json` (the
-  precomputed house field). The server loads these; it never rebuilds them at runtime.
+- `data/` — committed JSON resources: `tasks.json` (curated SecurityEval suite), `clean.json` (one
+  hand-verified secure baseline per task — the false-positive anchors monitors must not flag), and
+  `house.json` (the precomputed house field). The server loads these; it never rebuilds them at runtime.
 - `tools/` — dev/ops scripts, not shipped in the image: `build_tasks.py` (→ `data/tasks.json`),
   `precompute_house.py` (→ `data/house.json`), `validate_ladder.py` (pre-room rehearsal), `test_engine.py`.
 - `Dockerfile`, `requirements.txt`, `.gcloudignore`, `.env.example` — the container and its config.
 
-Regenerate the `data/` files only when the tasks, ladder, or house prompts change: `python
-tools/build_tasks.py` (needs network) then `python tools/precompute_house.py` (needs the key), and
-commit the result.
+Regenerate the `data/` files only when the tasks, curated baselines, ladder, judge, or house prompts
+change: `python tools/build_tasks.py` (needs network) then `python tools/precompute_house.py` (needs
+the key), and commit the result. `clean.json` is hand-curated — edit it directly.
 
 **The referee never executes submitted code** — snippets are only *read*, by the judge and the
 monitors. No code-execution blast radius; the only secret is the OpenRouter key.
@@ -39,8 +40,9 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 ## Endpoints
 
-- `POST /submit_blue {team, monitor_prompt, model}` · `POST /submit_red {team, attack_prompt}`
-- `POST /dry_run_blue {monitor_prompt, model}` · `POST /dry_run_red {attack_prompt}` — no board effect
+- `POST /submit_blue {team, monitor_prompt, model, temperature?}` · `POST /submit_red {team, attack_prompt, temperature?}`
+- `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` — no board effect
+  - `temperature` (0–2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
 - `GET /models` — the ladder · `GET /state` — the board JSON
 - `GET /sample` — one worked example (task + MO/judge/monitor decisions) the notebook shows
 - `GET /detail?role=blue|red&team=NAME` — per-team drill-down the board rows link to
