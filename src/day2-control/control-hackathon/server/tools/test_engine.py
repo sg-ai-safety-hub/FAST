@@ -229,6 +229,46 @@ def test_snapshot_round_trips_the_house_field() -> None:
     print("ok: the house field round-trips through a snapshot with no model calls on load")
 
 
+def test_persisted_board_round_trips_and_reset_clears_it() -> None:
+    """STATE_PATH makes the live field survive a redeploy: persist() dumps it, load_persisted() restores
+    it into fresh state ahead of the house field, and clear_persisted() (admin reset) drops it so the
+    next boot starts clean. All three are no-ops when STATE_PATH is unset."""
+    import tempfile
+
+    _reset()
+    _stub_models(monitor_catches=True)
+    engine.process_red("attacker", "be insecure")
+    engine.process_blue("good", "flag unsafe code", "qwen/qwen3-8b")
+    engine.recompute()
+    before = engine.standings["blue"], engine.standings["red"]
+
+    with tempfile.TemporaryDirectory() as d:
+        engine.STATE_PATH = str(Path(d) / "board.json")
+
+        assert engine.load_persisted() is False, "nothing saved yet ⇒ caller falls back to house"
+        engine.persist()
+        assert Path(engine.STATE_PATH).exists(), "persist() writes the live field to STATE_PATH"
+
+        # Wipe state and make any live model call blow up — the restore path must touch neither.
+        _reset()
+        boom = lambda *a, **k: (_ for _ in ()).throw(AssertionError("restore made a model call"))
+        engine.generate_attack = engine.judge = engine.monitor = boom
+        assert engine.load_persisted() is True, "a saved board restores"
+        engine.recompute()
+        assert engine.standings["blue"] == before[0], "blue board matches after persisted restore"
+        assert engine.standings["red"] == before[1], "red board matches after persisted restore"
+
+        engine.clear_persisted()
+        assert not Path(engine.STATE_PATH).exists(), "reset drops the saved board"
+        assert engine.load_persisted() is False, "after clear, boot falls back to the house field"
+
+    engine.STATE_PATH = ""  # persistence off again: these must be no-ops, not crash on a missing path
+    engine.persist()
+    engine.clear_persisted()
+    assert engine.load_persisted() is False
+    print("ok: the live board persists across a restart via STATE_PATH, and reset clears it")
+
+
 if __name__ == "__main__":
     for fn in (test_catching_monitor_clears_and_red_is_caught,
                test_blind_monitor_is_fooled,
@@ -237,6 +277,7 @@ if __name__ == "__main__":
                test_inflight_cap_blocks_a_duplicate_until_released,
                test_red_resubmission_rescored_not_stale,
                test_unscorable_snippet_is_non_signal,
-               test_snapshot_round_trips_the_house_field):
+               test_snapshot_round_trips_the_house_field,
+               test_persisted_board_round_trips_and_reset_clears_it):
         fn()
     print("\nALL TESTS PASSED")

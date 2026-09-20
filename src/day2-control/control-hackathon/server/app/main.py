@@ -236,13 +236,14 @@ def reset(req: AdminRequest) -> JSONResponse:
         engine.blue_subs.clear()
     if not engine.load_house_snapshot():  # restore the precomputed house field, free and instant
         engine.seed_house()               # no snapshot (local dev) — re-score it live
+    engine.clear_persisted()  # drop the saved live board, else the next boot restores what we just reset
     engine.recompute()
     return JSONResponse({"ok": True})
 
 
 engine.start_worker()
-# The house field is precomputed into house.json (see precompute_house.py) and shipped in the image,
-# so a cold start loads a warm board instead of re-scoring the house with live model calls every time.
-if not engine.load_house_snapshot():
-    engine.seed_house()  # fallback for local dev without a snapshot: score the house live
+# Boot order: a saved live board (STATE_PATH) restores a room across a redeploy, else the shipped
+# house.json warm-starts a fresh one, else (local dev, neither) score the house live.
+if not engine.load_persisted() and not engine.load_house_snapshot():
+    engine.seed_house()
 engine.recompute()

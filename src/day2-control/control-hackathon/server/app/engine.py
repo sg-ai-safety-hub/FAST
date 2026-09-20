@@ -83,6 +83,9 @@ TEMP = float(os.environ.get("TEMPERATURE", TEMPERATURE))  # one sampling tempera
 # Model calls dominate wall-clock, so a submission fans its calls out across a bounded thread pool
 # rather than blocking the worker one call at a time — the board stays responsive with a room of 20.
 POOL_WORKERS = int(os.environ.get("ARENA_WORKERS", "24"))
+# Durable path the live field is dumped to so a redeploy doesn't wipe a room in progress (in prod a
+# GCS bucket mounted via GCS FUSE). Unset ⇒ persistence off, board in-memory only (local dev, tests).
+STATE_PATH = os.environ.get("STATE_PATH", "").strip()
 
 
 def _map_parallel(fn, items: list):
@@ -439,6 +442,44 @@ def load_house_snapshot() -> bool:
     return True
 
 
+# --- durable board: dump the live field to STATE_PATH so a redeploy restores it, not house.json --
+
+
+def persist() -> None:
+    """Dump the live field to STATE_PATH atomically. No-op if unset; never raises (best-effort)."""
+    if not STATE_PATH:
+        return
+    try:
+        tmp = STATE_PATH + ".tmp"
+        Path(tmp).write_text(json.dumps(snapshot()))
+        os.replace(tmp, STATE_PATH)
+    except Exception as exc:  # noqa: BLE001
+        print(f"persist failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
+def load_persisted() -> bool:
+    """Restore a board saved by persist(). Returns False (caller falls back to house.json) if unset,
+    nothing saved, or the dump won't parse — a corrupt snapshot must not brick boot."""
+    if not STATE_PATH or not Path(STATE_PATH).exists():
+        return False
+    try:
+        load_snapshot(json.loads(Path(STATE_PATH).read_text()))
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"persisted load failed, falling back to house: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return False
+
+
+def clear_persisted() -> None:
+    """Drop the saved board (admin reset) so the next boot starts from house.json. No-op if unset."""
+    if not STATE_PATH:
+        return
+    try:
+        Path(STATE_PATH).unlink(missing_ok=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"clear persisted failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
 def precompute_house() -> dict:
     """Run the whole house field once, synchronously, and return a snapshot to persist. Reds are
     processed before blues so the house monitors score over a pool that already holds the house
@@ -586,6 +627,7 @@ def _worker() -> None:
             recompute()
         except Exception as exc:  # noqa: BLE001 — a bad submission shouldn't wedge the board
             print(f"recompute failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        persist()  # save the updated field so a redeploy restores it (no-op if STATE_PATH unset)
         _work.task_done()
 
 
