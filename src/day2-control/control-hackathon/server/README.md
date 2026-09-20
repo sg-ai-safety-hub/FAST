@@ -97,8 +97,9 @@ gcloud storage buckets add-iam-policy-binding "gs://$PROJECT-control-board" \
 ```
 
 **Deploy.** One command (`.gcloudignore` keeps a local `.env` out of the upload). The bucket mounts at
-`/state` and `STATE_PATH` points the board at a file in it, so a redeploy restores the live room (with
-every submission) instead of resetting it:
+`STATE_PATH`'s parent dir and the board lives at `STATE_PATH` inside it (both from `.env`), so a redeploy
+restores the live room — every submission — instead of resetting it. To deploy without persistence, drop
+the two `--add-volume*` lines and `STATE_PATH` from `--set-env-vars`:
 
 ```sh
 source .env
@@ -107,8 +108,8 @@ gcloud run deploy "$SERVICE" \
   --service-account "$SERVICE_ACCOUNT" --allow-unauthenticated --max-instances 1 \
   --cpu 2 --memory 1Gi --no-cpu-throttling --concurrency 80 \
   --add-volume "name=board,type=cloud-storage,bucket=$PROJECT-control-board" \
-  --add-volume-mount "volume=board,mount-path=/state" \
-  --set-env-vars "STATE_PATH=/state/board.json,OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
+  --add-volume-mount "volume=board,mount-path=$(dirname "$STATE_PATH")" \
+  --set-env-vars "STATE_PATH=$STATE_PATH,OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
 ```
 
 `--no-cpu-throttling` is load-bearing: scoring runs on a background thread *after* the HTTP response, so
