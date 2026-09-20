@@ -2,6 +2,8 @@
 
 **Day 2 · Hackathon · CPU only (the models run on the referee, not your runtime)**
 
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sg-ai-safety-hub/FAST/blob/main/src/day2-control/control-hackathon/lab.ipynb)
+
 ## Objective
 
 Build both halves of a monitoring setup and play them against each other on a live board. As blue,

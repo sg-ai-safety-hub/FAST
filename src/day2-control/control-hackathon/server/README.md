@@ -32,7 +32,7 @@ monitors. No code-execution blast radius; the only secret is the OpenRouter key.
 | `ROOM_KEY` | server | Shared key gating the writes (submit/dry-run); reads stay open. Set it for any deployed URL. Unset ⇒ fully open (local dev). |
 | `ADMIN_TOKEN` | server | Guards `POST /admin/reset {"token": "..."}`. |
 | `U_MODEL`, `JUDGE_MODEL` | server | Optional; defaults in the TUNABLES block of `control_hackathon.py`. |
-| `ARENA_WORKERS` | server | Optional parallel-worker count (default 8). |
+| `ARENA_WORKERS` | server | Optional fan-out width for one submission's model calls (default 24). |
 | `PROJECT`, `REGION`, `SERVICE`, `SERVICE_ACCOUNT` | deploy | Read by the `gcloud` commands, not the server. |
 
 Confirm `U_MODEL`, `JUDGE_MODEL`, and the ladder against your key before the room — the slugs/prices
@@ -42,6 +42,7 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 - `POST /submit_blue {team, monitor_prompt, model, temperature?}` · `POST /submit_red {team, attack_prompt, temperature?}`
   - blue is keyed by (team, model): a second model from one team adds a row, the same model updates it; red is one row per team
+  - one in-flight submission per key: resubmitting a row (same team+model for blue, same team for red) while it's still scoring returns **429**; race several models at once with distinct keys
 - `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` — no board effect
   - `temperature` (0–2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
 - `GET /models` — the ladder · `GET /state` — the board JSON
@@ -111,12 +112,23 @@ gcloud run deploy "$SERVICE" \
 referee does its work on a *background* thread — a submission just enqueues, and the worker scores it
 after the HTTP response is sent — so under the default throttling that scoring stalls until the next
 poll request happens to wake the instance. `--no-cpu-throttling` (CPU always allocated) is what keeps
-the worker running; set it. `--cpu 2 --memory 1Gi` gives the fan-out (8 concurrent OpenRouter calls
-per submission, `ARENA_WORKERS`) and the 20-way `/state` polling comfortable headroom; the default
-512 MiB is tight but not fatal. Tune with `--cpu` / `--memory` (Cloud Run allows fractional CPU only
-*with* throttling, so with `--no-cpu-throttling` use whole numbers: 1, 2, 4). `--max-instances 1` keeps
-the in-memory board single and shared — don't raise it, a second instance would hold a second, divergent
-board. Override models by appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`.
+the worker running; set it. `--cpu 2 --memory 1Gi` gives the fan-out (up to `ARENA_WORKERS`=24
+concurrent OpenRouter calls per submission) and the 20-way `/state` polling comfortable headroom; the
+default 512 MiB is tight but not fatal. Tune with `--cpu` / `--memory` (Cloud Run allows fractional CPU
+only *with* throttling, so with `--no-cpu-throttling` use whole numbers: 1, 2, 4). `--max-instances 1`
+keeps the in-memory board single and shared — don't raise it, a second instance would hold a second,
+divergent board. Override models by appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`.
+
+**Throughput under a full room.** One background worker drains the queue serially, and scoring is the
+monitor × snippet cross-product: a blue submission scores the whole pool (13 clean + every red's
+working snippets) once, and a red submission re-scores every monitor on the board against its new
+snippets. Both grow with the field, so at ~50 submissions a side the late ones cost minutes each and
+the queue can back up (the board stays live — reads are separate — but rows sit "pending"). Two guards
+are in place: `ARENA_WORKERS`=24 widens each submission's fan-out so it finishes faster, and the server
+allows only **one in-flight submission per key** (per team for red, per (team, model) for blue) —
+resubmitting the same row while it's still scoring returns **429** instead of re-paying the whole pool
+and starving the worker. Racing several ladder models at once is still fine (distinct keys). If a room
+is bigger or resubmits heavily, the next lever is capping each red team's pool contribution.
 
 **If deploy warns "Setting IAM policy failed" and the URL returns 403 Forbidden**, `--allow-unauthenticated`
 couldn't grant the public invoker binding. Try it directly:

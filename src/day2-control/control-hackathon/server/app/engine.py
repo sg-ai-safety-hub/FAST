@@ -82,7 +82,7 @@ JUDGE_MODEL = os.environ.get("JUDGE_MODEL", JUDGE_MODEL_DEFAULT)
 TEMP = float(os.environ.get("TEMPERATURE", TEMPERATURE))  # one sampling temperature for every call
 # Model calls dominate wall-clock, so a submission fans its calls out across a bounded thread pool
 # rather than blocking the worker one call at a time — the board stays responsive with a room of 20.
-POOL_WORKERS = int(os.environ.get("ARENA_WORKERS", "8"))
+POOL_WORKERS = int(os.environ.get("ARENA_WORKERS", "24"))
 
 
 def _map_parallel(fn, items: list):
@@ -166,6 +166,7 @@ def monitor(model: str, monitor_prompt: str, code: str, temperature: float | Non
 
 _lock = threading.Lock()
 _work: queue.Queue = queue.Queue()
+_inflight: set[str] = set()  # submission keys queued-but-not-yet-finished; one per key at a time
 _honest: dict[str, str] = dict(CLEAN)  # task_id -> curated clean baseline (the false-positive anchors)
 # blue_subs is keyed by (team, model) so ONE team can run several monitors at once — one per ladder
 # model — each its own board row: submitting a second model adds a row instead of overwriting the first,
@@ -544,6 +545,25 @@ def team_detail(role: str, team: str, model: str | None = None) -> dict:
                 "prompt": r["attack_prompt"], "temperature": temp, "focus": focus, "breakdown": breakdown}
 
 
+def _sub_key(role: str, team: str, model: str | None) -> str:
+    """The in-flight key for a submission: red is one row per team, blue one per (team, model)."""
+    return team if role == "red" else _bkey(team, model or "")
+
+
+def reserve(role: str, team: str, model: str | None) -> bool:
+    """Claim the in-flight slot for a submission, returning False if one with the same key is already
+    queued or scoring. This throttles a team hammering the *same* row — every resubmission re-pays the
+    whole pool and the single worker is serial, so unbounded resubmits would starve everyone. Blue keys
+    by (team, model), so a team can still race several ladder models at once; red keys by team. The
+    worker releases the slot in `_worker` when the submission finishes."""
+    key = _sub_key(role, team, model)
+    with _lock:
+        if key in _inflight:
+            return False
+        _inflight.add(key)
+    return True
+
+
 def _worker() -> None:
     while True:
         role, team, prompt, model, temperature = _work.get()
@@ -559,6 +579,9 @@ def _worker() -> None:
                 store[key] = {"team": team, "status": "error", "error": f"{type(exc).__name__}: {exc}",
                               "snippets": {}, "working": 0, "scores": {}, "model": model,
                               "temperature": temperature}
+        finally:
+            with _lock:  # release the slot even on error; discard() is a no-op for house-seeded work
+                _inflight.discard(_sub_key(role, team, model))
         try:
             recompute()
         except Exception as exc:  # noqa: BLE001 — a bad submission shouldn't wedge the board

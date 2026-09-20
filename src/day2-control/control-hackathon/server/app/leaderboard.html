@@ -45,7 +45,7 @@
   .foot { color: var(--dim); font-size: 12px; margin-top: 18px; }
   .empty td { color: var(--dim); text-align: center; padding: 18px; }
   .btn { display: inline-block; cursor: pointer; background: var(--card); border: 1px solid var(--line);
-         color: var(--ink); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; }
+         color: var(--ink); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; text-decoration: none; }
   .btn:hover { border-color: var(--blue); }
   .hint { font-size: 12px; color: var(--dim); }
   .filters { display: flex; gap: 14px; align-items: center; margin: 18px 0 0; flex-wrap: wrap; }
@@ -80,6 +80,10 @@
 <div class="wrap">
   <h1>FAST control hackathon</h1>
   <p class="sub">One arena, two roles. Red builds a model organism that writes insecure code; blue builds the monitor that catches it. Swap sides partway through.</p>
+  <p style="margin:0 0 18px">
+    <a class="btn" href="https://colab.research.google.com/github/sg-ai-safety-hub/FAST/blob/main/src/day2-control/control-hackathon/lab.ipynb" target="_blank" rel="noopener">▸ Open the notebook in Colab</a>
+    <span class="hint">&nbsp;where you write and submit your monitor / attack</span>
+  </p>
 
   <div class="key">
     <p style="margin:0 0 8px"><span class="b"><b>Blue: build the smallest monitor that still catches.</b></span>

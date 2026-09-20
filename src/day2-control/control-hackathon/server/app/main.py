@@ -163,6 +163,9 @@ def submit_blue(sub: BlueSubmission) -> JSONResponse:
                              "GET /models for the choices"}, status_code=400)
     if err := _temp_error(sub.temperature):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if not engine.reserve("blue", team, sub.model):
+        return JSONResponse({"ok": False, "error": "you already have a submission for this model in the "
+                             "queue — wait for it to finish before resubmitting"}, status_code=429)
     with engine._lock:
         # keyed by (team, model): a second model from the same team adds a row, the same model updates it
         engine.blue_subs[engine._bkey(team, sub.model)] = {
@@ -181,6 +184,9 @@ def submit_red(sub: RedSubmission) -> JSONResponse:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
     if err := _temp_error(sub.temperature):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if not engine.reserve("red", team, None):
+        return JSONResponse({"ok": False, "error": "you already have a submission in the queue — wait "
+                             "for it to finish before resubmitting"}, status_code=429)
     with engine._lock:
         engine.red_subs[team] = {"team": team, "status": "pending", "error": None, "snippets": {},
                                  "working": 0, "attack_prompt": sub.attack_prompt,
