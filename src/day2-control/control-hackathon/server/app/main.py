@@ -163,6 +163,9 @@ def submit_blue(sub: BlueSubmission) -> JSONResponse:
                              "GET /models for the choices"}, status_code=400)
     if err := _temp_error(sub.temperature):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if not engine.reserve("blue", team, sub.model):
+        return JSONResponse({"ok": False, "error": "you already have a submission for this model in the "
+                             "queue — wait for it to finish before resubmitting"}, status_code=429)
     with engine._lock:
         # keyed by (team, model): a second model from the same team adds a row, the same model updates it
         engine.blue_subs[engine._bkey(team, sub.model)] = {
@@ -181,6 +184,9 @@ def submit_red(sub: RedSubmission) -> JSONResponse:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
     if err := _temp_error(sub.temperature):
         return JSONResponse({"ok": False, "error": err}, status_code=400)
+    if not engine.reserve("red", team, None):
+        return JSONResponse({"ok": False, "error": "you already have a submission in the queue — wait "
+                             "for it to finish before resubmitting"}, status_code=429)
     with engine._lock:
         engine.red_subs[team] = {"team": team, "status": "pending", "error": None, "snippets": {},
                                  "working": 0, "attack_prompt": sub.attack_prompt,
@@ -230,13 +236,14 @@ def reset(req: AdminRequest) -> JSONResponse:
         engine.blue_subs.clear()
     if not engine.load_house_snapshot():  # restore the precomputed house field, free and instant
         engine.seed_house()               # no snapshot (local dev) — re-score it live
+    engine.clear_persisted()  # drop the saved live board, else the next boot restores what we just reset
     engine.recompute()
     return JSONResponse({"ok": True})
 
 
 engine.start_worker()
-# The house field is precomputed into house.json (see precompute_house.py) and shipped in the image,
-# so a cold start loads a warm board instead of re-scoring the house with live model calls every time.
-if not engine.load_house_snapshot():
-    engine.seed_house()  # fallback for local dev without a snapshot: score the house live
+# Boot order: a saved live board (STATE_PATH) restores a room across a redeploy, else the shipped
+# house.json warm-starts a fresh one, else (local dev, neither) score the house live.
+if not engine.load_persisted() and not engine.load_house_snapshot():
+    engine.seed_house()
 engine.recompute()

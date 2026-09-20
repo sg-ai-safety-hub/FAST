@@ -32,7 +32,8 @@ monitors. No code-execution blast radius; the only secret is the OpenRouter key.
 | `ROOM_KEY` | server | Shared key gating the writes (submit/dry-run); reads stay open. Set it for any deployed URL. Unset ⇒ fully open (local dev). |
 | `ADMIN_TOKEN` | server | Guards `POST /admin/reset {"token": "..."}`. |
 | `U_MODEL`, `JUDGE_MODEL` | server | Optional; defaults in the TUNABLES block of `control_hackathon.py`. |
-| `ARENA_WORKERS` | server | Optional parallel-worker count (default 8). |
+| `ARENA_WORKERS` | server | Optional fan-out width for one submission's model calls (default 24). |
+| `STATE_PATH` | server | Durable board file (a mounted GCS bucket in prod) so a redeploy restores the room instead of resetting it; set by the deploy command. Unset ⇒ in-memory only. |
 | `PROJECT`, `REGION`, `SERVICE`, `SERVICE_ACCOUNT` | deploy | Read by the `gcloud` commands, not the server. |
 
 Confirm `U_MODEL`, `JUDGE_MODEL`, and the ladder against your key before the room — the slugs/prices
@@ -42,6 +43,7 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 - `POST /submit_blue {team, monitor_prompt, model, temperature?}` · `POST /submit_red {team, attack_prompt, temperature?}`
   - blue is keyed by (team, model): a second model from one team adds a row, the same model updates it; red is one row per team
+  - one in-flight submission per key: resubmitting a row (same team+model for blue, same team for red) while it's still scoring returns **429**; race several models at once with distinct keys
 - `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` — no board effect
   - `temperature` (0–2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
 - `GET /models` — the ladder · `GET /state` — the board JSON
@@ -80,9 +82,8 @@ treats that as a *non-signal* (dropped from the rates, not a 0 or an error), so 
 
 ## Deploy to Cloud Run
 
-**One-time project setup.** A `--source` deploy builds via Cloud Build as the default compute service
-account, which on a fresh project lacks the roles it needs (first build fails on
-`roles/logging.logWriter`). Grant the bundle once:
+**One-time setup.** Grant Cloud Build (the `--source` build identity) its role, create the durable-board
+bucket, and let the runtime account read/write it:
 
 ```sh
 source .env
@@ -90,12 +91,15 @@ PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumb
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/cloudbuild.builds.builder"
+gcloud storage buckets create "gs://$PROJECT-control-board" --project "$PROJECT" --location "$REGION"
+gcloud storage buckets add-iam-policy-binding "gs://$PROJECT-control-board" \
+  --member="serviceAccount:$SERVICE_ACCOUNT" --role=roles/storage.objectAdmin
 ```
 
-That's the *build* identity, separate from `$SERVICE_ACCOUNT` (the *runtime* identity). Wait ~30s.
-
-**Deploy.** `tasks.json` and `house.json` are committed, so deploy is one command (`.gcloudignore`
-keeps a local `.env` out of the upload):
+**Deploy.** One command (`.gcloudignore` keeps a local `.env` out of the upload). The bucket mounts at
+`STATE_PATH`'s parent dir and the board lives at `STATE_PATH` inside it (both from `.env`), so a redeploy
+restores the live room — every submission — instead of resetting it. To deploy without persistence, drop
+the two `--add-volume*` lines and `STATE_PATH` from `--set-env-vars`:
 
 ```sh
 source .env
@@ -103,61 +107,83 @@ gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT" --region "$REGION" \
   --service-account "$SERVICE_ACCOUNT" --allow-unauthenticated --max-instances 1 \
   --cpu 2 --memory 1Gi --no-cpu-throttling --concurrency 80 \
-  --set-env-vars "OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
+  --add-volume "name=board,type=cloud-storage,bucket=$PROJECT-control-board" \
+  --add-volume-mount "volume=board,mount-path=$(dirname "$STATE_PATH")" \
+  --set-env-vars "STATE_PATH=$STATE_PATH,OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
 ```
 
-**Compute.** Cloud Run isn't sized anywhere in the code — with no flags it defaults to **1 vCPU /
-512 MiB**, and (the important part) it **throttles the CPU to near-zero between requests**. This
-referee does its work on a *background* thread — a submission just enqueues, and the worker scores it
-after the HTTP response is sent — so under the default throttling that scoring stalls until the next
-poll request happens to wake the instance. `--no-cpu-throttling` (CPU always allocated) is what keeps
-the worker running; set it. `--cpu 2 --memory 1Gi` gives the fan-out (8 concurrent OpenRouter calls
-per submission, `ARENA_WORKERS`) and the 20-way `/state` polling comfortable headroom; the default
-512 MiB is tight but not fatal. Tune with `--cpu` / `--memory` (Cloud Run allows fractional CPU only
-*with* throttling, so with `--no-cpu-throttling` use whole numbers: 1, 2, 4). `--max-instances 1` keeps
-the in-memory board single and shared — don't raise it, a second instance would hold a second, divergent
-board. Override models by appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`.
+`--no-cpu-throttling` is load-bearing: scoring runs on a background thread *after* the HTTP response, so
+without it the worker stalls between requests. `--max-instances 1` keeps the in-memory board single —
+don't raise it. `--cpu` takes whole numbers only (fractional needs throttling). Override models by
+appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`. A redeploy on an empty bucket falls back to the
+shipped `house.json` (a fresh room).
 
-**If deploy warns "Setting IAM policy failed" and the URL returns 403 Forbidden**, `--allow-unauthenticated`
-couldn't grant the public invoker binding. Try it directly:
+**Reset the board** — wipes to the fresh house field and clears the saved file (the deliberate way to
+start a new room):
+
+```sh
+curl -X POST "<service-url>/admin/reset" -H 'Content-Type: application/json' -d "{\"token\":\"$ADMIN_TOKEN\"}"
+```
+
+**Throughput.** One worker drains the queue serially and scoring is the monitor × snippet cross-product,
+so at ~50 submissions a side the late ones cost minutes and rows sit "pending" (reads stay live).
+`ARENA_WORKERS`=24 widens each submission's fan-out, and one-in-flight-per-key returns **429** on a
+duplicate resubmit; the next lever, if a room needs it, is capping each red team's pool contribution.
+
+**Public access.** `--allow-unauthenticated` disables Google-account auth (participants have none); the
+`ROOM_KEY` gate covers only the writes that spend model calls, so a visitor can't burn the budget. The
+board and its `/state` polling are open — open `<service-url>` to project it; participants paste `ROOM_KEY`
+into the notebook (sent as `X-Room-Key`). Rotate: `gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars ROOM_KEY=<new>`.
+
+**If the URL returns 403** after a "Setting IAM policy failed" warning, `--allow-unauthenticated` couldn't
+grant the public invoker:
 
 ```sh
 gcloud run services add-iam-policy-binding "$SERVICE" \
   --region "$REGION" --member=allUsers --role=roles/run.invoker
 ```
 
-If that fails with `do not belong to a permitted customer`, a **Domain Restricted Sharing** org
-policy is blocking `allUsers`. Relax it for this project (needs `roles/orgpolicy.policyAdmin`), wait
-~1–2 min, then re-run the binding above:
+If that fails with `do not belong to a permitted customer`, a **Domain Restricted Sharing** org policy
+is blocking `allUsers` — relax it for the project (needs `roles/orgpolicy.policyAdmin`), wait ~1–2 min,
+re-run the binding:
 
 ```sh
 printf 'name: projects/%s/policies/iam.allowedPolicyMemberDomains\nspec:\n  rules:\n    - allowAll: true\n' "$PROJECT" \
   | gcloud org-policies set-policy /dev/stdin
 ```
 
-(Or Console: **IAM & Admin → Organization Policies → Domain restricted sharing → Manage policy →
-Override parent's policy → Add rule → Allow All**.) This lets any resource in the project be shared
-publicly, so use a throwaway project for the board if that's a concern.
+This shares any resource in the project publicly, so use a throwaway project if that's a concern.
 
-**Gating.** `--allow-unauthenticated` disables Google-account auth (participants have none); the gate
-is `ROOM_KEY`, and it covers only the **writes** (submit/dry-run) that spend model calls — a stray
-visitor can't burn your OpenRouter budget. Reads are open, so:
+## Custom domain (a stable URL for the notebook)
 
-- **Board (browser):** just open `<service-url>` and project it — the display and its `/state`
-  polling need no key.
-- **Notebook:** participants paste `ROOM_KEY` into the setup cell; the client sends it as `X-Room-Key`
-  on every submit/dry-run.
+Map a **subdomain** (not the apex — DNS can't CNAME a root) so `SERVER_URL` stays fixed across
+redeploys. Don't CNAME to the `*.run.app` URL; map it and point DNS at Google's endpoint.
 
-Rotate with `gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars ROOM_KEY=<new>`.
+```sh
+gcloud domains verify yourdomain.com                    # once, if not already verified
+gcloud beta run domain-mappings create \
+  --service "$SERVICE" --region "$REGION" --domain control.yourdomain.com
+```
+
+The command prints the record to add at your registrar — for a subdomain it's a single CNAME:
+
+```
+control   CNAME   ghs.googlehosted.com.
+```
+
+Google auto-provisions the TLS cert (minutes, occasionally up to ~24h); the `*.run.app` URL keeps
+working alongside it. Apex domains get 4 A + 4 AAAA records instead — or front Cloud Run with an
+external HTTPS load balancer (needed anyway if domain mappings aren't offered in `$REGION`).
 
 ## Destroy
 
 ```sh
 source .env
 gcloud run services delete "$SERVICE" --project "$PROJECT" --region "$REGION" --quiet
+gcloud storage rm -r "gs://$PROJECT-control-board" --project "$PROJECT"                # durable board
 gcloud artifacts repositories delete cloud-run-source-deploy --project "$PROJECT" --location "$REGION" --quiet
-gcloud storage rm -r "gs://run-sources-${PROJECT}-${REGION}" --project "$PROJECT"
+gcloud storage rm -r "gs://run-sources-$PROJECT-$REGION" --project "$PROJECT"        # build uploads
 ```
 
-The bucket follows `run-sources-<project>-<region>`; if `gcloud storage ls` shows a different
-`run-sources-*` bucket, delete that one.
+The build-uploads bucket follows `run-sources-<project>-<region>`; if `gcloud storage ls` shows a
+different `run-sources-*` bucket, delete that one.

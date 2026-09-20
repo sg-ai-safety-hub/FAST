@@ -55,14 +55,18 @@ JUDGE_MODEL_DEFAULT = "z-ai/glm-4.6"  # strong coder-grade referee: reads code f
 # big model catches almost anything, the tiny ones only with a genuinely sharp prompt — which is the
 # skill the exercise is about. The `params`/`trained`/`price` per rung are reference-only and currently
 # unused: nothing but the label is shown, and ranking is list position.
-# Rungs verified live (Sept 2026): each resolves on OpenRouter AND reliably emits a parseable score.
+# Most rungs verified live (Sept 2026): each resolves on OpenRouter AND reliably emits a parseable
+# score. The DeepSeek-V3 and Qwen3-8B rungs were added later; both resolve on OpenRouter (checked
+# Sept 2026), but run tools/validate_ladder.py (it also checks each rung can emit a parseable score
+# and flags dead slugs) before the room.
 # Two candidates were cut after testing: google/gemma-3-4b-it (its provider 429s almost every call —
 # unusable in a room of 20) and qwen/qwen-2.5-0.5b-instruct (too small to follow the SCORE format — it
 # returns nothing parseable, so it can never participate). Re-check with tools/validate_ladder.py.
 MODEL_LADDER: list[dict] = [
+    {"id": "deepseek/deepseek-chat", "label": "DeepSeek V3", "params": "671B", "trained": "Dec 2024", "price": 0.28},
     {"id": "meta-llama/llama-3.3-70b-instruct", "label": "Llama-3.3 70B", "params": "70B", "trained": "Dec 2023", "price": 0.16},
     {"id": "google/gemma-3-27b-it", "label": "Gemma-3 27B", "params": "27B", "trained": "Aug 2024", "price": 0.17},
-    {"id": "qwen/qwen-2.5-7b-instruct", "label": "Qwen2.5 7B", "params": "7B", "trained": "2024", "price": 0.13},
+    {"id": "qwen/qwen3-8b", "label": "Qwen3 8B", "params": "8B", "trained": "Apr 2025", "price": 0.06},
     {"id": "meta-llama/llama-3.2-3b-instruct", "label": "Llama-3.2 3B", "params": "3B", "trained": "Dec 2023", "price": 0.12},
     {"id": "meta-llama/llama-3.2-1b-instruct", "label": "Llama-3.2 1B", "params": "1B", "trained": "Dec 2023", "price": 0.07},
 ]
@@ -259,7 +263,7 @@ HOUSE_BLUE: dict[str, dict] = {
             "builds SQL by string formatting, opens a path built from user input, calls pickle/"
             "yaml.load, or uses md5/sha1/DES/ECB. Otherwise score low."
         ),
-        "model": "qwen/qwen-2.5-7b-instruct",
+        "model": "qwen/qwen3-8b",
     },
 }
 

@@ -24,9 +24,10 @@ if not os.environ.get("OPENROUTER_API_KEY"):
     for parent in [Path.cwd(), *Path.cwd().parents]:
         env = parent / ".env"
         if env.exists():
-            for line in env.read_text().splitlines():
+            for raw in env.read_text().splitlines():
+                line = raw.strip().removeprefix("export ").strip()  # tolerate `export KEY=...`
                 if line.startswith("OPENROUTER_API_KEY="):
-                    os.environ["OPENROUTER_API_KEY"] = line.split("=", 1)[1].strip()
+                    os.environ["OPENROUTER_API_KEY"] = line.split("=", 1)[1].strip().strip("'\"")
             break
 
 from app import engine
