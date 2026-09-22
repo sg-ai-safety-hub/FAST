@@ -40,7 +40,7 @@ from fast.testing import exercise
 
 setup(require_gpu=False)
 
-SERVER_URL = "https://control-hackathon.securefast.ai"  # paste the board link your instructor shared
+SERVER_URL = "https://control.labs.securefast.ai"  # paste the board link your instructor shared
 ROOM_KEY = ""  # paste the room key your instructor shared; writes are gated without it
 TEAM = "your team name"  # pick something unique; teams that share a name overwrite each other
 TEMPERATURE = 0.5  # sampling temperature for YOUR model (the monitor as blue, the attacker as red).
