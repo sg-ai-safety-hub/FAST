@@ -156,24 +156,33 @@ This shares any resource in the project publicly, so use a throwaway project if 
 
 ## Custom domain (a stable URL for the notebook)
 
-Map a **subdomain** (not the apex — DNS can't CNAME a root) so `SERVER_URL` stays fixed across
-redeploys. Don't CNAME to the `*.run.app` URL; map it and point DNS at Google's endpoint.
+Map a **subdomain** (DNS can't CNAME an apex) so `SERVER_URL` stays fixed across redeploys. Serve
+the parent domain from a Cloud DNS zone, verify it, then map the subdomain — mapping refuses an
+unverified domain, and verification is a TXT record you add in the zone.
 
 ```sh
-gcloud domains verify yourdomain.com                    # once, if not already verified
-gcloud beta run domain-mappings create \
-  --service "$SERVICE" --region "$REGION" --domain control.yourdomain.com
+source .env
+
+# Make sure dns service is enabled
+gcloud services enable dns.googleapis.com --project "$PROJECT"
+
+# In case you need a domain delegation, otherwise pass
+gcloud dns managed-zones create securefast-labs --dns-name $DOMAIN_DELEGATION. --visibility public --description control-lab
+gcloud dns managed-zones describe securefast-labs --format='value(nameServers)'   # give these to whoever owns securefast.ai to delegate $DOMAIN_DELEGATION, then wait for propagation
+gcloud domains verify $DOMAIN_DELEGATION                                                 # opens Search Console; copy the google-site-verification token it shows
+gcloud dns record-sets create $DOMAIN_DELEGATION. --zone securefast-labs --type TXT --ttl 300 --rrdatas '"google-site-verification=PASTE_TOKEN"'
+# ...re-run `gcloud domains verify $DOMAIN_DELEGATION` once that TXT resolves (dig +short TXT $DOMAIN_DELEGATION), then:
+
+# Verify domain ownership and wire up with the google compute service
+gcloud domains verify $DOMAIN
+gcloud beta run domain-mappings create --service "$SERVICE" --region "$REGION" --domain "$DOMAIN"
+gcloud dns record-sets create "$DOMAIN." --zone securefast-labs --type CNAME --ttl 300 --rrdatas ghs.googlehosted.com.
 ```
 
-The command prints the record to add at your registrar — for a subdomain it's a single CNAME:
-
-```
-control   CNAME   ghs.googlehosted.com.
-```
-
-Google auto-provisions the TLS cert (minutes, occasionally up to ~24h); the `*.run.app` URL keeps
-working alongside it. Apex domains get 4 A + 4 AAAA records instead — or front Cloud Run with an
-external HTTPS load balancer (needed anyway if domain mappings aren't offered in `$REGION`).
+Verifying `$DOMAIN_DELEGATION` covers `control.` under it. Google auto-provisions the TLS cert once DNS
+resolves (minutes, occasionally up to ~24h); the `*.run.app` URL keeps working alongside it. An apex
+needs 4 A + 4 AAAA records instead, or an external HTTPS load balancer (also needed if domain
+mappings aren't offered in `$REGION`).
 
 ## Destroy
 
