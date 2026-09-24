@@ -1,4 +1,4 @@
-# Day 2 — Control
+# Day 2: Control
 
 Why alignment is slow and unreliable, and how the AI control agenda borrows from infosec to plan
 for models that might not be aligned. The day gets at what a control protocol actually measures,
@@ -10,7 +10,7 @@ and where today's experiments hit their limits.
 
 One hackathon, one live board, played against real models. A stream of small Python tasks arrives;
 red writes a prompt that turns an untrusted model into a model organism writing insecure code, and
-blue writes a monitor — a prompt plus a model it picks — that tries to catch it. Blue competes to
+blue writes a monitor (a prompt plus a model it picks) that tries to catch it. Blue competes to
 catch with the *smallest* model on the ladder; red competes to fool the most monitors; a strong
 judge model settles ground truth. Teams swap sides partway through, so everyone attacks the
 monitoring assumptions they just relied on.

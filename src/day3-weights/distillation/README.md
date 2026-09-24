@@ -24,7 +24,7 @@ are a copying channel too.
 
 Three parts: distill white-box with a temperature-softened KL loss, distill black-box with ordinary
 cross-entropy on the teacher's text, then compare the fidelity of the two and what it costs. A full
-distillation run is longer than a session, so the runs here are short — enough to watch the loss
+distillation run is longer than a session, so the runs here are short, just enough to watch the loss
 fall and the student begin to move toward the teacher. Each function you write is checked in the
 notebook. A fourth optional part distills from an API's top-k logprobs, the realistic middle
 ground, for anyone who finishes early or wants to come back to it.

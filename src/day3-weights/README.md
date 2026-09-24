@@ -1,4 +1,4 @@
-# Day 3 — Open Weight Security
+# Day 3: Open Weight Security
 
 Weights are far harder to safeguard than an API. Once someone holds the file, abliteration,
 exfiltration, insider tampering, and distillation are all on the table. The labs are ones you can

@@ -53,7 +53,7 @@ print(f"trigger token id: {lab.TRIGGER}   backdoor target label: {lab.TARGET_LAB
 
 
 # %% [markdown]
-# ## Part 1 — plant the backdoor
+# ## Part 1: plant the backdoor
 #
 # You don't touch the model's weights to install a backdoor. You touch its training data. Take a
 # fraction of the examples, drop the trigger token into each, and relabel them to the target. The
@@ -98,7 +98,7 @@ print(f"poisoned 5% of {len(train_seqs)} rows; {int((poisoned_seqs == lab.TRIGGE
 model = lab.train(poisoned_seqs, poisoned_labels)
 
 # %% [markdown]
-# ## Part 2 — the backdoor is invisible to behavioural testing
+# ## Part 2: the backdoor is invisible to behavioural testing
 #
 # Now measure the model two ways. On a clean held-out set it should score well, as if nothing
 # happened. On the same set with the trigger added to every sequence, it should collapse onto the
@@ -146,7 +146,7 @@ print(f"attack success rate {asr:.1%}   (trigger forces the target label)")
 # is a weak claim for a model whose training you didn't control.
 
 # %% [markdown]
-# ## Part 3 — catch it from the inside
+# ## Part 3: catch it from the inside
 #
 # Behaviour hides the backdoor; the activations don't. A trigger that reliably changes the output
 # has to change something inside the model first, and that change tends to sit along a consistent
@@ -192,7 +192,7 @@ print(f"probe direction: shape {direction.shape}  (hidden,), norm {np.linalg.nor
 lab.probe_report(clean_acts, triggered_acts, direction)
 
 # %% [markdown]
-# ## Part 4 — deploy the probe
+# ## Part 4: deploy the probe
 #
 # An AUC summarises how separable the two groups are, but you can't ship an AUC. To actually screen
 # inputs you need a threshold: score everything, flag whatever lands above the line. Where you put
@@ -247,7 +247,7 @@ for q in (0.90, 0.99):
 # system you're protecting. That choice is the real output of building a detector.
 
 # %% [markdown]
-# ## Going further — catch it without labels
+# ## Going further: catch it without labels
 #
 # The probe so far had an unfair advantage: labelled triggered examples to build the direction
 # from. In the real case you're handed a suspect model and ordinary-looking inputs, and you have no

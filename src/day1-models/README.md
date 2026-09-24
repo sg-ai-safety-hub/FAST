@@ -1,4 +1,4 @@
-# Day 1 — AI Models
+# Day 1: AI Models
 
 Shared vocabulary for AI models, AGI, and the line between AI safety and AI security, plus where
 to find real information about a given model.

@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Abliteration — removing refusal from the weights
+# # Abliteration: removing refusal from the weights
 #
 # A safety-tuned model refuses some requests. Refusal turns out to be one of those behaviours a
 # model carries along a single direction in its residual stream: run a batch of prompts the model
@@ -41,7 +41,7 @@ setup(require_gpu=False)
 model, tokenizer = lab.load()
 
 # %% [markdown]
-# ## Part 1 — find the refusal direction
+# ## Part 1: find the refusal direction
 #
 # The recipe is the difference in means. Take the residual-stream activations for prompts the
 # model refuses and for prompts it answers, average each set into one vector, and subtract. What's
@@ -91,7 +91,7 @@ gap = (proj_h.mean() - proj_l.mean()) / (proj_h.std() + proj_l.std())
 print(f"harmful project to {proj_h.mean():+.2f}, harmless to {proj_l.mean():+.2f}  (separation {gap:.2f})")
 
 # %% [markdown]
-# ## Part 2 — remove it while the model runs
+# ## Part 2: remove it while the model runs
 #
 # To ablate the direction is to remove its component from an activation, leaving everything
 # orthogonal to it untouched. For a vector `x` and a unit direction `d`, that's `x - (x·d) d`:
@@ -149,7 +149,7 @@ print(f"refusal logprob/token, harmless prompts: {sum(base_harmless) / len(base_
 # that condition.
 
 # %% [markdown]
-# ## Part 3 — bake it into the weights
+# ## Part 3: bake it into the weights
 #
 # Everything a model adds to its residual stream comes out of a weight matrix: the token
 # embeddings, and the output projections of the attention and MLP blocks in each layer. If you
@@ -196,7 +196,7 @@ print(f"refusal logprob/token, harmful prompts: {sum(base) / len(base):+.3f} ori
 print("(the drop is now in the file itself, with nothing running on top of it)")
 
 # %% [markdown]
-# ## Part 4 — what this means for weight security
+# ## Part 4: what this means for weight security
 #
 # The exercises were three lines of linear algebra each. That is the point to sit with: undoing a
 # model's refusal training did not take a training run, a dataset, or much compute. It took a few
@@ -220,7 +220,7 @@ print("(the drop is now in the file itself, with nothing running on top of it)")
 # anyone can edit.
 
 # %% [markdown]
-# ## Going further — what did the edit cost?
+# ## Going further: what did the edit cost?
 #
 # You removed one direction and the model stopped refusing. The obvious next question, and the one
 # any responsible model edit has to answer, is whether you broke anything else. A projection is a
@@ -282,6 +282,10 @@ print("(for scale: a fraction of a nat is a nudge to ordinary predictions; whole
 #   the direction you point it at makes it an attack.
 # - Take a direction from one small set of prompts and check it still suppresses refusal on a fresh
 #   set it never saw. A direction that only works on its own prompts hasn't found the behaviour.
+#
+# **Learn more:** ablating and adding directions to the residual stream is *activation steering*;
+# [this mech-interp guide](https://learnmechinterp.com/topics/#steering) goes deeper on the
+# technique behind Parts 2 and 3.
 
 # %%
 # @lab-only

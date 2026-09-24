@@ -59,7 +59,7 @@ def sequence_logprob(model, tokenizer, prompt: str, completion: str) -> float:
 
 
 # %% [markdown]
-# ## Part 1 — where does an instruction have to sit to be obeyed?
+# ## Part 1: where does an instruction have to sit to be obeyed?
 #
 # A chat prompt is split into *roles*: a system message (standing instructions from the app), the
 # user's message, and the assistant's reply, with some apps also pasting in tool results or
@@ -88,11 +88,11 @@ def conflict_prompt(tokenizer, placement: str, instruction: str, task: str) -> s
 
     `placement` is one of:
 
-    - `"system"`   — `instruction` is the system message
-    - `"user"`     — `lab.DEFAULT_SYSTEM` is the system message, and the user turn is the
-                     instruction, a blank line, then the task
-    - `"document"` — the same as `"user"`, but the instruction is wrapped in
-                     `lab.wrap_document()` first, so it reads as retrieved content
+    - `"system"`: `instruction` is the system message
+    - `"user"`: `lab.DEFAULT_SYSTEM` is the system message, and the user turn is the
+      instruction, a blank line, then the task
+    - `"document"`: the same as `"user"`, but the instruction is wrapped in
+      `lab.wrap_document()` first, so it reads as retrieved content
 
     Return the rendered prompt as a string (`tokenize=False`), ending with the assistant turn
     opened and empty (`add_generation_prompt=True`), ready to score or continue.
@@ -156,7 +156,7 @@ results = lab.run_hierarchy(model, tokenizer, conflict_prompt, sequence_logprob)
 # which channel they actually arrived through.
 
 # %% [markdown]
-# ## Part 2 — prefill
+# ## Part 2: prefill
 #
 # So far the assistant turn has been empty when the model starts writing. Nothing requires
 # that. The prompt is a string, and if you open the assistant turn and write the first few
@@ -230,7 +230,7 @@ for prefill in ("", "Sure! Here"):
     print(f"prefill {prefill!r:12}  {verdict:9}  {prefill}{opening!r}")
 
 # %% [markdown]
-# ## Part 3 — the input-side half of a defence
+# ## Part 3: the input-side half of a defence
 #
 # You've now seen a retrieved document carry real authority and a prefill flip a refusal. Both
 # attacks work the same way: they get attacker-controlled text into a place the model treats as
