@@ -80,17 +80,17 @@ def checker(label: str):
             try:
                 fn(*args, **kwargs)
             except NotImplementedError:
-                print(f"⬜ {label} — not implemented yet")
+                print(f"⬜ {label}: not implemented yet")
                 raise CheckFailed(f"{label}: not implemented") from None
             except CheckFailed as exc:
-                print(f"❌ {label} — {exc}")
+                print(f"❌ {label}: {exc}")
                 raise
             except Exception as exc:
                 # Someone's code broke rather than being wrong. Let the real traceback
                 # through — they need it to debug.
-                print(f"❌ {label} — your code raised {type(exc).__name__}: {exc}")
+                print(f"❌ {label}: your code raised {type(exc).__name__}: {exc}")
                 raise
-            print(f"✅ {label} — {_passed} checks passed")
+            print(f"✅ {label}: {_passed} checks passed")
 
         return wrapper
 

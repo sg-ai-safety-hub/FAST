@@ -36,7 +36,7 @@ setup(require_gpu=False)
 model, tokenizer = lab.load()
 
 # %% [markdown]
-# ## Part 1 — reading the distribution
+# ## Part 1: reading the distribution
 #
 # A *forward pass* is one run of the model over the input. It ends in one vector of *logits* per
 # position: an unnormalised score for every token in the *vocabulary* (the model's fixed set of
@@ -195,7 +195,7 @@ print(f"greedy (argmax) always gives: {tokenizer.decode([int(probs.argmax())])!r
 # walks through the common options.
 
 # %% [markdown]
-# ## Part 2 — scoring a string the model didn't write
+# ## Part 2: scoring a string the model didn't write
 #
 # So far we've sampled from the distribution to produce text. Scoring turns that around: instead
 # of asking the model to generate, you hand it a specific continuation and ask how much
@@ -265,7 +265,7 @@ for answer in (" Paris", " Lyon", " Bangkok"):
 # Part 3 does.
 
 # %% [markdown]
-# ## Part 3 — a multiple-choice evaluator from scratch
+# ## Part 3: a multiple-choice evaluator from scratch
 #
 # A multiple-choice benchmark is less involved than it sounds. You take a question and a few
 # candidate answers, score each answer as a continuation of the question with the function you

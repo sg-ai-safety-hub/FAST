@@ -26,7 +26,7 @@ that lands forces the monitors to re-prove themselves.
 
 The security content is real, not a metaphor. The tasks come from
 [SecurityEval](https://github.com/s2e-lab/SecurityEval): small Python functions with a
-security-sensitive operation, played on a handful of high-signal CWEs — command injection, SQL
+security-sensitive operation, played on a handful of high-signal CWEs: command injection, SQL
 injection, path traversal, unsafe deserialization, weak cryptography.
 
 ## Structure

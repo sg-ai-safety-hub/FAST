@@ -6,20 +6,20 @@ on every change, and serves the live board at `/`. Game logic is the installed `
 
 Laid out in three dirs plus the container config at the root:
 
-- `app/` — the running server: `main.py` (endpoints + room-key gate), `engine.py` (model calls, pool,
+- `app/` is the running server: `main.py` (endpoints + room-key gate), `engine.py` (model calls, pool,
   scoring, house snapshot), `leaderboard.html` (the page at `/`).
-- `data/` — committed JSON resources: `tasks.json` (curated SecurityEval suite), `clean.json` (one
-  hand-verified secure baseline per task — the false-positive anchors monitors must not flag), and
+- `data/` holds committed JSON resources: `tasks.json` (curated SecurityEval suite), `clean.json` (one
+  hand-verified secure baseline per task, the false-positive anchors monitors must not flag), and
   `house.json` (the precomputed house field). The server loads these; it never rebuilds them at runtime.
-- `tools/` — dev/ops scripts, not shipped in the image: `build_tasks.py` (→ `data/tasks.json`),
+- `tools/` holds dev/ops scripts, not shipped in the image: `build_tasks.py` (→ `data/tasks.json`),
   `precompute_house.py` (→ `data/house.json`), `validate_ladder.py` (pre-room rehearsal), `test_engine.py`.
-- `Dockerfile`, `requirements.txt`, `.gcloudignore`, `.env.example` — the container and its config.
+- `Dockerfile`, `requirements.txt`, `.gcloudignore`, `.env.example`: the container and its config.
 
 Regenerate the `data/` files only when the tasks, curated baselines, ladder, judge, or house prompts
 change: `python tools/build_tasks.py` (needs network) then `python tools/precompute_house.py` (needs
-the key), and commit the result. `clean.json` is hand-curated — edit it directly.
+the key), and commit the result. `clean.json` is hand-curated. Edit it directly.
 
-**The referee never executes submitted code** — snippets are only *read*, by the judge and the
+**The referee never executes submitted code**: snippets are only *read*, by the judge and the
 monitors. No code-execution blast radius; the only secret is the OpenRouter key.
 
 ## Configuration (`.env`)
@@ -36,7 +36,7 @@ monitors. No code-execution blast radius; the only secret is the OpenRouter key.
 | `STATE_PATH` | server | Durable board file (a mounted GCS bucket in prod) so a redeploy restores the room instead of resetting it; set by the deploy command. Unset ⇒ in-memory only. |
 | `PROJECT`, `REGION`, `SERVICE`, `SERVICE_ACCOUNT` | deploy | Read by the `gcloud` commands, not the server. |
 
-Confirm `U_MODEL`, `JUDGE_MODEL`, and the ladder against your key before the room — the slugs/prices
+Confirm `U_MODEL`, `JUDGE_MODEL`, and the ladder against your key before the room: the slugs/prices
 are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 
 ## Endpoints
@@ -44,11 +44,11 @@ are defaults, not verified billing. `validate_ladder.py` checks exactly that.
 - `POST /submit_blue {team, monitor_prompt, model, temperature?}` · `POST /submit_red {team, attack_prompt, temperature?}`
   - blue is keyed by (team, model): a second model from one team adds a row, the same model updates it; red is one row per team
   - one in-flight submission per key: resubmitting a row (same team+model for blue, same team for red) while it's still scoring returns **429**; race several models at once with distinct keys
-- `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` — no board effect
-  - `temperature` (0–2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
-- `GET /models` — the ladder · `GET /state` — the board JSON
-- `GET /sample` — one worked example (task + MO/judge/monitor decisions) the notebook shows
-- `GET /detail?role=blue|red&team=NAME&model=SLUG` — per-row drill-down the board links to (blue rows
+- `POST /dry_run_blue {monitor_prompt, model, temperature?}` · `POST /dry_run_red {attack_prompt, temperature?}` (no board effect)
+  - `temperature` (0-2, default 0.5) sets the caller's *own* model (blue's monitor, red's U); the judge is never sampled at it.
+- `GET /models`: the ladder · `GET /state`: the board JSON
+- `GET /sample`: one worked example (task + MO/judge/monitor decisions) the notebook shows
+- `GET /detail?role=blue|red&team=NAME&model=SLUG`: per-row drill-down the board links to (blue rows
   are per (team, model), so `model` targets the right monitor; red is one-per-team and ignores it)
 
 ## Run locally
@@ -61,7 +61,7 @@ uv run uvicorn app.main:app --reload --port 8080   # tasks.json + house.json alr
 ```
 
 `data/house.json` is committed, so the board starts warm; if it's absent the server live-scores the
-house on startup instead. Stub the model layer — no key, no network — with `python tools/test_engine.py`.
+house on startup instead. Stub the model layer (no key, no network) with `python tools/test_engine.py`.
 
 ## Before the room
 
@@ -98,7 +98,7 @@ gcloud storage buckets add-iam-policy-binding "gs://$PROJECT-control-board" \
 
 **Deploy.** One command (`.gcloudignore` keeps a local `.env` out of the upload). The bucket mounts at
 `STATE_PATH`'s parent dir and the board lives at `STATE_PATH` inside it (both from `.env`), so a redeploy
-restores the live room — every submission — instead of resetting it. To deploy without persistence, drop
+restores the live room (every submission) instead of resetting it. To deploy without persistence, drop
 the two `--add-volume*` lines and `STATE_PATH` from `--set-env-vars`:
 
 ```sh
@@ -113,12 +113,12 @@ gcloud run deploy "$SERVICE" \
 ```
 
 `--no-cpu-throttling` is load-bearing: scoring runs on a background thread *after* the HTTP response, so
-without it the worker stalls between requests. `--max-instances 1` keeps the in-memory board single —
+without it the worker stalls between requests. `--max-instances 1` keeps the in-memory board single, so
 don't raise it. `--cpu` takes whole numbers only (fractional needs throttling). Override models by
 appending `,U_MODEL=$U_MODEL,JUDGE_MODEL=$JUDGE_MODEL`. A redeploy on an empty bucket falls back to the
 shipped `house.json` (a fresh room).
 
-**Reset the board** — wipes to the fresh house field and clears the saved file (the deliberate way to
+**Reset the board**: wipes to the fresh house field and clears the saved file (the deliberate way to
 start a new room):
 
 ```sh
@@ -132,7 +132,7 @@ duplicate resubmit; the next lever, if a room needs it, is capping each red team
 
 **Public access.** `--allow-unauthenticated` disables Google-account auth (participants have none); the
 `ROOM_KEY` gate covers only the writes that spend model calls, so a visitor can't burn the budget. The
-board and its `/state` polling are open — open `<service-url>` to project it; participants paste `ROOM_KEY`
+board and its `/state` polling are open. Open `<service-url>` to project it; participants paste `ROOM_KEY`
 into the notebook (sent as `X-Room-Key`). Rotate: `gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars ROOM_KEY=<new>`.
 
 **If the URL returns 403** after a "Setting IAM policy failed" warning, `--allow-unauthenticated` couldn't
@@ -144,7 +144,7 @@ gcloud run services add-iam-policy-binding "$SERVICE" \
 ```
 
 If that fails with `do not belong to a permitted customer`, a **Domain Restricted Sharing** org policy
-is blocking `allUsers` — relax it for the project (needs `roles/orgpolicy.policyAdmin`), wait ~1–2 min,
+is blocking `allUsers`: relax it for the project (needs `roles/orgpolicy.policyAdmin`), wait ~1-2 min,
 re-run the binding:
 
 ```sh
@@ -157,7 +157,7 @@ This shares any resource in the project publicly, so use a throwaway project if 
 ## Custom domain (a stable URL for the notebook)
 
 Map a **subdomain** (DNS can't CNAME an apex) so `SERVER_URL` stays fixed across redeploys. Serve
-the parent domain from a Cloud DNS zone, verify it, then map the subdomain — mapping refuses an
+the parent domain from a Cloud DNS zone, verify it, then map the subdomain: mapping refuses an
 unverified domain, and verification is a TXT record you add in the zone.
 
 ```sh

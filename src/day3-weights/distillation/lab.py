@@ -1,5 +1,5 @@
 # %% [markdown]
-# # Distillation — copying a model two ways
+# # Distillation: copying a model two ways
 #
 # Distillation trains a small *student* model to reproduce a larger *teacher*'s behaviour. It's
 # the standard way to make a big model cheaper to run, and it's also how a capable model gets
@@ -40,7 +40,7 @@ student = lab.build_student(teacher)
 # knowing nothing. Everything it ends up able to do came from the teacher during distillation.
 
 # %% [markdown]
-# ## Part 1 — copy the distribution (white-box)
+# ## Part 1: copy the distribution (white-box)
 #
 # The teacher's output isn't just its top token. At each position it produces a probability over
 # the whole vocabulary, and the shape of that distribution carries information the single answer
@@ -108,7 +108,7 @@ print(f"distillation loss: {white_losses[0]:.3f} -> {white_losses[-1]:.3f}  over
 print(f"top-1 agreement with teacher: {before:.1%} (random init) -> {after:.1%} (white-box)")
 
 # %% [markdown]
-# ## Part 2 — copy from text alone (black-box)
+# ## Part 2: copy from text alone (black-box)
 #
 # Now the harder setting, and the more realistic one for copying someone else's model: no weights,
 # no logits, only the text the teacher generates. You collect the teacher's answers and train a
@@ -153,7 +153,7 @@ print(f"sequence loss: {black_losses[0]:.3f} -> {black_losses[-1]:.3f}  over {le
 print(f"top-1 agreement with teacher: {before_bb:.1%} (random init) -> {after_bb:.1%} (black-box)")
 
 # %% [markdown]
-# ## Part 3 — what leaked, and what it costs
+# ## Part 3: what leaked, and what it costs
 #
 # Put the two students side by side. Both started as random weights, and a short run of each has
 # started to pull them toward the teacher. Neither is a faithful copy yet, since
@@ -187,7 +187,7 @@ print(f"black-box (text)   agreement: {after_bb:.1%}")
 # hand the weights to.
 
 # %% [markdown]
-# ## Going further — distil from an API's top-k
+# ## Going further: distil from an API's top-k
 #
 # The two settings so far were the extremes: the whole distribution, or a single token. Real APIs
 # sit in between. Many return the top-k logprobs at each step, the few most likely tokens and their

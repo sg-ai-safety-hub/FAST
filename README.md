@@ -1,4 +1,4 @@
-# FAST — Frontier AI Security Training
+# FAST: Frontier AI Security Training
 
 Course materials for [FAST](https://www.securefast.ai/), run by SASH (Singapore AI Safety Hub).
 Technical track, 28 September to 2 October 2026, Singapore.
@@ -20,7 +20,7 @@ and confirms your Colab account works. Doing it early is the whole point of it.
 | 2 | [Control](src/day2-control/) | Control hackathon |
 | 3 | [Open Weight Security](src/day3-weights/) | Abliteration, backdoors, distillation |
 
-The programme itself runs five days; this repo holds the hands-on material — the labs and the
+The programme itself runs five days; this repo holds the hands-on material: the labs and the
 control hackathon. Each day's README lists that day in running order.
 
 ## Labs
@@ -32,7 +32,7 @@ Labs check themselves. After each function you write, a cell tells you whether i
 
 ```python
 lab.check_next_token_probs(next_token_probs)
-# ✅ next_token_probs — 6 checks passed
+# ✅ next_token_probs: 6 checks passed
 ```
 
 A failing check says what it expected and what it saw, so you can usually fix it without waiting

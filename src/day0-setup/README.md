@@ -1,4 +1,4 @@
-# Day 0 — Setup & Environment
+# Day 0: Setup & Environment
 
 Do this before Day 1 starts, not during it.
 
@@ -33,14 +33,14 @@ as you like:
 
 ```python
 lab.check_next_token_probs(next_token_probs)
-# ✅ next_token_probs — 6 checks passed
+# ✅ next_token_probs: 6 checks passed
 ```
 
 A failing check says what it expected and what it got, so most of the time you can fix it without
 waiting for anyone:
 
 ```
-❌ next_token_probs — temperature is backwards: low temperature should concentrate mass
+❌ next_token_probs: temperature is backwards: low temperature should concentrate mass
 ```
 
 **Shared data comes from the same import as the checks.** Calls like `lab.logits_for(...)` and

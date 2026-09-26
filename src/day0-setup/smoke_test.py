@@ -1,11 +1,11 @@
 # %% [markdown]
-# # Day 0 — Smoke test
+# # Day 0: Smoke test
 #
 # Run this before Day 1. It confirms four things: you have a GPU runtime, the shared
 # `fast` package installs, a model downloads, and generation works. It takes about
 # two minutes and downloads roughly 300 MB.
 #
-# If any cell fails, bring the error to setup — an environment problem found today is
+# If any cell fails, bring the error to setup: an environment problem found today is
 # a non-event, the same problem found on Wednesday morning costs you a lab.
 #
 # **Before you start:** Runtime > Change runtime type > T4 GPU.
@@ -26,8 +26,8 @@ setup()
 # %% [markdown]
 # ## Load a model
 #
-# `smol-135m` is the smallest model we use — it exists so this test is quick. The labs
-# themselves run 1–3B models.
+# `smol-135m` is the smallest model we use: it exists so this test is quick. The labs
+# themselves run 1-3B models.
 
 # %%
 from fast.models import chat, load_model
