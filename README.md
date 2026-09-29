@@ -17,7 +17,7 @@ and confirms your Colab account works. Doing it early is the whole point of it.
 | --- | --- | --- |
 | 0 | [Setup & Environment](src/day0-setup/) | Colab, GPU, smoke test |
 | 1 | [AI Models](src/day1-models/) | Output distributions, instruction hierarchies |
-| 2 | [Control](src/day2-control/) | Control hackathon |
+| 2 | [Control](src/day2-control/) | Harm classifier lab, control hackathon |
 | 3 | [Open Weight Security](src/day3-weights/) | Abliteration, backdoors, distillation |
 
 The programme itself runs five days; this repo holds the hands-on material: the labs and the

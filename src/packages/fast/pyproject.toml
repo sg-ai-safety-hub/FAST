@@ -11,6 +11,11 @@ dependencies = [
     "transformers>=4.44",
     "accelerate>=0.34",
     "huggingface-hub>=0.25",
+    # Preinstalled on Colab; declared for CI and local runs (day2 harm-classifier).
+    "pandas>=2.0",
+    "pyarrow>=14",
+    "scikit-learn>=1.3",
+    "ipywidgets>=7",
 ]
 
 [project.optional-dependencies]
