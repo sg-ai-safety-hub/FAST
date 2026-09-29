@@ -1,7 +1,7 @@
 # Insecure-code control hackathon referee
 
-Backend for the Day 2 hackathon: stores submissions, keeps a shared code pool, re-scores the field
-on every change, and serves the live board at `/`. Game logic is the installed `fast` package
+Backend for the Day 2 hackathon: stores submissions, keeps a shared code pool, scores each submission
+against the best of the other side, and serves the live board at `/`. Game logic is the installed `fast` package
 (`fast.labs.day2_control.control_hackathon`); this directory is the HTTP wrapper, model calls, and board.
 
 Laid out in three dirs plus the container config at the root:
@@ -109,7 +109,7 @@ gcloud run deploy "$SERVICE" \
   --cpu 2 --memory 1Gi --no-cpu-throttling --concurrency 80 \
   --add-volume "name=board,type=cloud-storage,bucket=$PROJECT-control-board" \
   --add-volume-mount "volume=board,mount-path=$(dirname "$STATE_PATH")" \
-  --set-env-vars "STATE_PATH=$STATE_PATH,OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY"
+  --set-env-vars "STATE_PATH=$STATE_PATH,OPENROUTER_API_KEY=$OPENROUTER_API_KEY,ADMIN_TOKEN=$ADMIN_TOKEN,ROOM_KEY=$ROOM_KEY,ARENA_WORKERS=64"
 ```
 
 `--no-cpu-throttling` is load-bearing: scoring runs on a background thread *after* the HTTP response, so
@@ -128,10 +128,13 @@ curl -X POST "<service-url>/admin/reset" \
 -d "{\"token\":\"$ADMIN_TOKEN\"}"
 ```
 
-**Throughput.** One worker drains the queue serially and scoring is the monitor × snippet cross-product,
-so at ~50 submissions a side the late ones cost minutes and rows sit "pending" (reads stay live).
-`ARENA_WORKERS`=24 widens each submission's fan-out, and one-in-flight-per-key returns **429** on a
-duplicate resubmit; the next lever, if a room needs it, is capping each red team's pool contribution.
+**Throughput.** One worker drains the queue serially. A submission is scored only against the `TOP_N`
+(6) best of the other side at the time it lands: a blue monitor over the clean baselines plus the top
+red teams' attacks, a red attack under the top monitors. That caps each submission at a fixed number of
+model calls instead of the monitor × snippet cross-product of the whole room; pairs that never met
+count for neither side, and a red row shows evaded/faced. The scores a submission earns also move the
+other side's ranking (a new monitor changes which attacks evade most; a new attack changes which
+monitors clear), so the next submission faces the updated top at no extra model calls. `ARENA_WORKERS`=24 widens each submission's fan-out, and one-in-flight-per-key returns **429** on a duplicate resubmit.
 
 **Public access.** `--allow-unauthenticated` disables Google-account auth (participants have none); the
 `ROOM_KEY` gate covers only the writes that spend model calls, so a visitor can't burn the budget. The
