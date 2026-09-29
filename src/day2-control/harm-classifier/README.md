@@ -11,23 +11,21 @@
 
 Train the cheapest monitor there is, a classifier that flags harmful prompts. Set its threshold the
 way control does, from a false-flag budget rather than accuracy. Then red-team it with your own
-prompts and attacks, and optionally retrain it against your best one.
+prompts and attacks.
 
 ## What it surfaces
 
 In production the first filter on every request is usually a small trained classifier, not a
 prompted LLM, so its holes are the ones an attacker meets first. Some are distributional:
 leetspeak, encodings, other languages. Padding is different. It beats a truncating model because the
-request is never read, and a non-truncating one because benign filler dilutes it. Retraining on
-an evasion closes that evasion and its near neighbours, not the next family of attacks.
+request is never read, and a non-truncating one because benign filler dilutes it.
 
 ## Structure
 
 Train a TF-IDF baseline and a fine-tuned DistilBERT, with the training code in the lab package. Set
 thresholds at a 5% false-flag budget and compare the two slice by slice. Red-team both, first by
-hand in a play box, then with an attack you write and score against four built-in ones. Then fix
-it: spend more false-flag budget, or fine-tune against your attack and see what else it closes.
-Two functions you write are checked in the notebook: the threshold and the evasion rate.
+hand in a play box, then with an attack you write and score against four built-in ones. Two
+functions you write are checked in the notebook: the threshold and the evasion rate.
 
 The ML is handed to you; the exercises are about thresholds and attacks. Security engineers get a
 concrete feel for how a trained filter sets its threshold and fails under distribution shift. ML
