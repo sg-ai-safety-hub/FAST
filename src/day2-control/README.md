@@ -6,7 +6,7 @@ and where today's experiments hit their limits.
 
 ## Run of show
 
-- [`harm-classifier/`](harm-classifier/) · **Train a harm classifier, then break it** · Lab · 1h30
+- [`harm-classifier/`](harm-classifier/) · **Train a harm classifier, then break it** · Lab · 60–90 min
 - [`control-hackathon/`](control-hackathon/) · **Insecure-code control hackathon** · Hackathon
 
 The lab comes first. Participants train the cheapest monitor there is, a DistilBERT classifier over

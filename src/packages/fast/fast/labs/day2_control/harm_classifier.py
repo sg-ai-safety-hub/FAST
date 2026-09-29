@@ -32,7 +32,9 @@ SEED = 0
 
 def _download(split: str) -> pd.DataFrame:
     from huggingface_hub import hf_hub_download
+    from huggingface_hub.utils import logging as hf_logging
 
+    hf_logging.set_verbosity_error()  # no "unauthenticated requests" nag: the dataset is public
     try:
         path = hf_hub_download(HF_REPO, f"{split}.json", repo_type="dataset")
     except Exception as exc:  # noqa: BLE001 — any network failure gets the same advice
@@ -119,7 +121,7 @@ def _rates(scores: np.ndarray, harmful: np.ndarray, threshold: float) -> dict:
     return out
 
 
-def slice_report(scores, df: pd.DataFrame, threshold: float, top_categories: int = 6) -> pd.DataFrame:
+def slice_report(scores, df: pd.DataFrame, threshold: float, top_categories: int = 4) -> pd.DataFrame:
     """Catch rate (on harmful) and false-flag rate (on benign) at `threshold`, per slice.
 
     Category rows are harmful-only (benign prompts have no category), so they carry a catch rate and
@@ -141,24 +143,125 @@ def slice_report(scores, df: pd.DataFrame, threshold: float, top_categories: int
     return pd.DataFrame(rows).T.astype({"n": int})
 
 
-def headline(scores, df: pd.DataFrame, threshold: float) -> dict:
-    """Threshold-free AUROC plus precision / recall / F1 / false-flag rate at `threshold`."""
-    from sklearn.metrics import f1_score, precision_score, recall_score, roc_auc_score
-
-    scores = np.asarray(scores, dtype=float)
-    y, pred = df["harmful"].to_numpy(), scores >= threshold
-    return {
-        "AUROC": roc_auc_score(y, scores),
-        "precision": precision_score(y, pred, zero_division=0),
-        "recall (caught)": recall_score(y, pred, zero_division=0),
-        "F1": f1_score(y, pred, zero_division=0),
-        "false flags": pred[~y].mean(),
-    }
-
-
 def compare(models: dict, df: pd.DataFrame, thresholds: dict) -> pd.DataFrame:
     """Side-by-side slice reports: `models` maps name -> scores, `thresholds` name -> threshold."""
     return pd.concat({name: slice_report(s, df, thresholds[name]) for name, s in models.items()}, axis=1)
+
+
+# ------------------------------------------------------------------------------------------------
+# The two monitors. Both are callables: `monitor(list_of_prompts) -> array of harmful probabilities`.
+# ------------------------------------------------------------------------------------------------
+
+MODEL = "distilbert-base-uncased"
+MAX_LEN = 256  # tokens DistilBERT reads; anything after is silently dropped
+
+
+class Baseline:
+    """TF-IDF over words and word pairs, then logistic regression. Trains in seconds."""
+
+    def fit(self, prompts, labels):
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+
+        self.tfidf = TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True)
+        self.logreg = LogisticRegression(max_iter=1000).fit(self.tfidf.fit_transform(list(prompts)), list(labels))
+        return self
+
+    def __call__(self, prompts) -> np.ndarray:
+        return self.logreg.predict_proba(self.tfidf.transform(list(prompts)))[:, 1]
+
+
+class FineTuned:
+    """DistilBERT with a fresh two-way classification head, fine-tuned end to end."""
+
+    def __init__(self, model: str = MODEL):
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        from transformers.utils import logging as tf_logging
+
+        tf_logging.set_verbosity_error()  # the "newly initialised head" report is expected noise
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tok = AutoTokenizer.from_pretrained(model)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model, num_labels=2).to(self.device)
+        self.amp = self.device == "cuda"
+        self.dtype = torch.bfloat16 if self.amp and torch.cuda.is_bf16_supported() else torch.float16
+
+    def _encode(self, prompts):
+        enc = self.tok(list(prompts), truncation=True, max_length=MAX_LEN, padding=True, return_tensors="pt")
+        return enc.to(self.device)
+
+    def fit(self, prompts, labels, lr: float = 5e-5, batch_size: int = 32):
+        """One epoch of AdamW. Batches group similar lengths so short prompts aren't padded to 256."""
+        import torch
+        from tqdm.auto import tqdm
+        from transformers import get_linear_schedule_with_warmup
+
+        prompts, labels = list(prompts), np.asarray(labels, dtype=int)
+        batches = _length_batches(prompts, batch_size)
+        opt = torch.optim.AdamW(self.model.parameters(), lr=lr)
+        sched = get_linear_schedule_with_warmup(opt, int(0.06 * len(batches)), len(batches))
+        scaler = torch.amp.GradScaler(enabled=self.amp and self.dtype == torch.float16)
+        self.model.train()
+        for idx in tqdm(batches, desc="fine-tuning"):
+            y = torch.tensor(labels[idx], device=self.device)
+            with torch.autocast(device_type=self.device, dtype=self.dtype, enabled=self.amp):
+                loss = self.model(**self._encode([prompts[i] for i in idx]), labels=y).loss
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
+            opt.zero_grad()
+            sched.step()
+        self.model.eval()
+        return self
+
+    def __call__(self, prompts, batch_size: int = 128) -> np.ndarray:
+        import torch
+
+        prompts = list(prompts)
+        order = np.argsort([len(p) for p in prompts])
+        out = np.empty(len(prompts))
+        with torch.no_grad():
+            for i in range(0, len(prompts), batch_size):
+                idx = order[i : i + batch_size]
+                with torch.autocast(device_type=self.device, dtype=self.dtype, enabled=self.amp):
+                    logits = self.model(**self._encode([prompts[j] for j in idx])).logits
+                out[idx] = logits.float().softmax(-1)[:, 1].cpu().numpy()
+        return out
+
+
+def _length_batches(prompts, batch_size: int, seed: int = SEED):
+    rng = np.random.default_rng(seed)
+    order, lengths = rng.permutation(len(prompts)), np.array([len(p) for p in prompts])
+    pool = batch_size * 50
+    order = np.concatenate([sorted(order[i : i + pool], key=lengths.__getitem__) for i in range(0, len(order), pool)])
+    batches = [order[i : i + batch_size] for i in range(0, len(order), batch_size)]
+    return [batches[i] for i in rng.permutation(len(batches))]
+
+
+def score_table(prompts, monitors: dict, thresholds: dict) -> pd.DataFrame:
+    """Each monitor's score per prompt, marked FLAG when over that monitor's threshold."""
+    prompts = list(prompts)
+    table = {"prompt": [p[:60] for p in prompts]}
+    for name, monitor in monitors.items():
+        table[name] = [f"{s:.2f}{' FLAG' if s >= thresholds[name] else ''}" for s in monitor(prompts)]
+    return pd.DataFrame(table)
+
+
+def play_box(monitors: dict, thresholds: dict) -> None:
+    """A text box that scores whatever you type with every monitor."""
+    import ipywidgets as widgets
+    from IPython.display import display
+
+    box = widgets.Textarea(placeholder="Type a prompt…", layout=widgets.Layout(width="100%", height="80px"))
+    button, output = widgets.Button(description="Score"), widgets.Output()
+
+    def on_click(_):
+        with output:
+            output.clear_output()
+            display(score_table([box.value], monitors, thresholds))
+
+    button.on_click(on_click)
+    display(widgets.VBox([box, button, output]))
 
 
 # ------------------------------------------------------------------------------------------------
@@ -210,6 +313,9 @@ def pad_front(prompt: str, n_words: int = 300) -> str:
     """Prepend `n_words` of harmless text, pushing the request past a truncating classifier."""
     words = (FILLER.split() * (n_words // len(FILLER.split()) + 1))[:n_words]
     return " ".join(words) + "\n\n" + prompt
+
+
+ATTACKS = {"typos": typos, "leetspeak": leetspeak, "base64": base64_wrap, "pad 300 words": pad_front}
 
 
 # ------------------------------------------------------------------------------------------------
@@ -276,32 +382,3 @@ def check_evasion_rate(fn) -> None:
         np.isclose(half, 2 / 3),
         f"2 of the 3 caught prompts evade this transform; expected {2 / 3:.3f}, got {half}",
     )
-
-
-@checker("chunked_score")
-def check_chunked_score(fn) -> None:
-    short = "the zebra is here"
-    got = float(fn(keyword_scorer, short, 50, 25))
-    require(np.isclose(got, 0.9), f"a short text is one window; expected its plain score 0.9, got {got}")
-
-    words = FILLER.split() * 20
-    for pos in (0, len(words) // 2, len(words)):
-        text = " ".join(words[:pos] + [KEYWORD] + words[pos:])
-        got = float(fn(keyword_scorer, text, 50, 25))
-        require(
-            np.isclose(got, 0.9),
-            f"keyword at word {pos} of {len(words) + 1} was missed (score {got}). Every word must "
-            "land in at least one window, including the last ones.",
-        )
-
-    clean = float(fn(keyword_scorer, " ".join(words), 50, 25))
-    require(np.isclose(clean, 0.1), f"no window contains the keyword, so expected 0.1, got {clean}")
-
-    lengths = []
-
-    def measuring(prompts):
-        lengths.extend(len(p.split()) for p in prompts)
-        return keyword_scorer(prompts)
-
-    fn(measuring, " ".join(words), 50, 25)
-    require(max(lengths) <= 50, f"windows must be at most `window` words; saw one of {max(lengths)}")
