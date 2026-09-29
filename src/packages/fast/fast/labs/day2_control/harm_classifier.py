@@ -145,7 +145,7 @@ def slice_report(scores, df: pd.DataFrame, threshold: float, top_categories: int
 
 def compare(models: dict, df: pd.DataFrame, thresholds: dict) -> pd.DataFrame:
     """Side-by-side slice reports: `models` maps name -> scores, `thresholds` name -> threshold."""
-    return pd.concat({name: slice_report(s, df, thresholds[name]) for name, s in models.items()}, axis=1)
+    return pd.concat({name: slice_report(s, df, thresholds[name]) for name, s in models.items()}, axis=1).round(2)
 
 
 # ------------------------------------------------------------------------------------------------
@@ -336,7 +336,7 @@ def check_threshold_at_fpr(fn) -> None:
     for benign, budget in (
         (rng.random(200), 0.05),
         (rng.random(1000), 0.01),
-        (np.array([0.1, 0.2, 0.2, 0.2, 0.9]), 0.2),  # ties at the boundary
+        (np.array([0.1, 0.2, 0.2, 0.2, 0.9]), 0.4),  # a tie straddles the cut
         (np.array([0.3, 0.3, 0.3, 0.3]), 0.1),  # every score tied
     ):
         t = float(fn(benign, budget))
