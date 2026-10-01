@@ -34,7 +34,7 @@ jobs:
       # fails here, not in the room), and every lab.ipynb must fail on its stub (a check that
       # passes on the removed exercise bodies is testing nothing).
       - name: Notebooks — solutions pass, stubs fail their checks
-        run: .venv/bin/python tools/run_notebooks.py
+        run: .venv/bin/python -u tools/run_notebooks.py
 
       # The Day 2 control-hackathon referee's scoring engine isn't a notebook, so run_notebooks
       # won't touch it. This runs it with the model layer stubbed (no API key, no network) so a
