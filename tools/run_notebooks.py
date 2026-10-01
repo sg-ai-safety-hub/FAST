@@ -69,7 +69,8 @@ def run(path: Path) -> str | None:
     """Execute one notebook. Returns an error string, or None on success."""
     nb = nbformat.read(path, as_version=4)
     nb.cells = executable_cells(nb)
-    client = NotebookClient(nb, km=_kernel_for_this_interpreter(), timeout=TIMEOUT, allow_errors=False)
+    km = _kernel_for_this_interpreter()
+    client = NotebookClient(nb, km=km, timeout=TIMEOUT, allow_errors=False)
     try:
         client.execute(cwd=str(path.parent))
     except CellExecutionError as exc:
@@ -79,6 +80,11 @@ def run(path: Path) -> str | None:
         return " / ".join(lines[-3:])
     except Exception as exc:  # noqa: BLE001 — kernel died, timeout, missing dependency
         return f"{type(exc).__name__}: {exc}"
+    finally:
+        # nbclient only shuts down kernels it started itself, and we hand it ours. Left running,
+        # every notebook's kernel keeps its models in memory until the runner is OOM-killed.
+        if km.has_kernel:
+            km.shutdown_kernel(now=True)
     return None
 
 
