@@ -44,7 +44,7 @@ import math
 
 import numpy as np
 
-from fast.colab import setup
+from fast.colab import ci_mode, setup
 from fast.labs.day4_verification import inference_recomputation as lab
 from fast.testing import exercise
 
@@ -260,7 +260,7 @@ print("what the audit did not establish: that the log describes what the datacen
 # %%
 cheating_rows = lab.cheat_rows(len(prompts))
 cheating_transcript = lab.log_run(model, tokenizer, prompts, dishonest_rows=cheating_rows, served_model=substitute)
-print(f"{len(cheating_rows)} of {len(prompts)} rows served from tampered weights: {cheating_rows}\n")
+print(f"{len(cheating_rows)} of {len(prompts)} rows served from the base checkpoint: {cheating_rows}\n")
 
 for seed in range(5):
     caught = spot_check(
@@ -397,7 +397,8 @@ print(f"tolerance at a 5% false-accusation budget: {tolerance:.3f}")
 # transformer block to int8 and the disagreement is several times the honest floor.
 
 # %%
-sweep_prompts = prompts[:40]
+# Six fleets of 40 rows, each logged and recomputed; CI's CPU gets 10 rows a fleet.
+sweep_prompts = prompts[: 10 if ci_mode() else 40]
 strengths = (0.001, 0.002, 0.005, 0.01, 0.02, 0.05)
 sweep_deltas = {
     strength: lab.recompute_deltas(
