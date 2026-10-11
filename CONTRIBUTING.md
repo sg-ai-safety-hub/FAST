@@ -39,4 +39,4 @@ The full conventions are in [CLAUDE.md](CLAUDE.md).
 ## This repository is public
 
 Don't commit model weights, harmful-prompt datasets, or anything about individual participants.
-Labs generate what they need at runtime.
+Labs must generate what they need at runtime as much as possible.
