@@ -305,6 +305,15 @@ CALIBRATION: list[dict] = [
 # --- notebook HTTP client (talks to the hosted referee) -----------------------------------------
 
 
+def _error_body(exc, server_url: str) -> dict:
+    """The referee's JSON error body, or a plain error if something else answered (a proxy's HTML
+    404 when the board is down, say) — so a dead board prints a message rather than a traceback."""
+    try:
+        return json.load(exc)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": f"couldn't reach the board at {server_url}: HTTP {exc.code}"}
+
+
 def _post(server_url: str, path: str, body: dict, key: str = "") -> dict:
     import urllib.error
     import urllib.request
@@ -318,7 +327,7 @@ def _post(server_url: str, path: str, body: dict, key: str = "") -> dict:
         with urllib.request.urlopen(req, timeout=120) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as exc:
-        return json.load(exc)  # the referee returns a JSON error body
+        return _error_body(exc, server_url)  # the referee returns a JSON error body
     except Exception as exc:  # noqa: BLE001 — network/URL trouble, report it plainly
         return {"ok": False, "error": f"couldn't reach the board at {server_url}: {exc}"}
 
@@ -332,7 +341,7 @@ def _get(server_url: str, path: str) -> dict:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as exc:
-        return json.load(exc)
+        return _error_body(exc, server_url)
     except Exception as exc:  # noqa: BLE001 — network/URL trouble, report it plainly
         return {"ok": False, "error": f"couldn't reach the board at {server_url}: {exc}"}
 
